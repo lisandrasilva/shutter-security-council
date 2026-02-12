@@ -29,14 +29,24 @@ Recommended procedure:
    - `AZORIUS_ADDRESS = same production Azorius`
 2. Verify source and constructor args.
 3. Rehearse on a fork:
-   - install new guard on Safe
+   - set new guard via `Azorius.setGuard(newGuard)`
    - execute a known non-vetoed tx (should pass)
    - veto/unveto a known tx hash (should block then restore)
-4. Execute governance/safe transaction to switch guard on production Safe.
+4. Execute governance/safe transaction to switch guard on production Azorius.
 5. Post-activation checks:
    - `supportsInterface` and key reads on new guard
+   - `Azorius.guard() == newGuard`
    - one live no-op or harmless execution path through guard
 6. Keep the old guard address documented for incident response and historic lookups.
+
+## Guard Placement (Safe 1.3.0)
+
+Safe `1.3.0` module transactions (`execTransactionFromModule`) do not execute Safe transaction guard checks.
+
+Operational requirement:
+
+1. Install `SecurityCouncilAzorius` as Azorius module guard (`Azorius.setGuard`).
+2. Do not rely on Safe guard wiring alone for proposal-path vetoes.
 
 ## Deployment Freeze Controls
 
@@ -44,4 +54,5 @@ Before broadcast:
 
 1. Confirm commit hash, compiler version, and optimization settings.
 2. Confirm exact `COUNCIL_ADDRESS` and `AZORIUS_ADDRESS` from approved source of truth.
-3. Confirm external review sign-off is complete.
+3. Confirm planned `Azorius.setGuard(deployedGuard)` step and post-check are in rollout plan.
+4. Confirm external review sign-off is complete.

@@ -36,11 +36,20 @@ Governance stack addresses used in proposal-fork testing:
 
 | Component | Address source | Role in system | Interaction points |
 | --- | --- | --- | --- |
-| `SecurityCouncilAzorius` (this contract) | Deployment output | Safe guard that enforces vetoes | Implements `IGuard.checkTransaction` and council veto controls |
-| Azorius module | Constructor arg `_azorius` (`AZORIUS_ADDRESS`) | Canonical source of proposal tx hashes and tx hash computation | `getProposal` in `vetoProposal`/`unvetoProposal`, `getTxHash` in `checkTransaction` |
-| Safe (guard host) | Safe config (not constructor input) | Calls guard hooks during module execution | Calls `checkTransaction` before execution and `checkAfterExecution` after execution |
+| `SecurityCouncilAzorius` (this contract) | Deployment output | Veto guard used by Azorius module | Implements `IGuard.checkTransaction` and council veto controls |
+| Azorius module | Constructor arg `_azorius` (`AZORIUS_ADDRESS`) | Canonical source of proposal tx hashes and tx hash computation; guard host for module execution | `getProposal` in `vetoProposal`/`unvetoProposal`, `getTxHash` in `checkTransaction`, `setGuard` for installation |
+| Safe (avatar/target) | Safe config (not constructor input) | Module execution endpoint used by Azorius | Receives `execTransactionFromModule`; does not enforce Safe tx guard on module path in Safe `1.3.0` |
 | Council account (EOA or multisig) | Constructor arg `_council` (`COUNCIL_ADDRESS`) | Exclusive authority for veto controls | Caller for `vetoProposal`, `unvetoProposal`, `vetoTx`, `unvetoTx`, `multicall` |
 | Proposal target contracts | Proposal payload data in Azorius | Business logic executed by Safe when tx is allowed | Not called directly by guard; included in hash preimage passed to Azorius |
+
+## Guard placement requirement
+
+For the mainnet stack (`Safe 1.3.0` + Azorius module), veto enforcement must be configured as:
+
+1. Deploy `SecurityCouncilAzorius`.
+2. Set it as Azorius guard via `Azorius.setGuard(deployedGuard)`.
+
+Setting only Safe guard (`Safe.setGuard`) is insufficient for module-path veto enforcement on Safe `1.3.0`.
 
 ## Governance stack contracts for fork proposal tests
 
@@ -72,6 +81,7 @@ Operational addresses (not constructor inputs, but required for runbooks and inc
 - Safe address where guard is installed
 - Safe singleton (mastercopy) address
 - Safe contract version
+- Azorius guard address (`Azorius.guard()`)
 - deployed guard address
 - previous guard address (after rotations)
 
@@ -99,5 +109,6 @@ After deployment:
 1. Record deployed guard address and deployment tx hash in the table above.
 2. Resolve and record Safe singleton address and Safe version.
 3. Verify source and constructor args on explorer.
-4. Record guard installation tx on Safe.
-5. For rotations, append new row and retain old guard address for auditability.
+4. Execute and record `Azorius.setGuard(deployedGuard)`.
+5. Verify `Azorius.guard() == deployedGuard`.
+6. For rotations, append new row and retain old guard address for auditability.

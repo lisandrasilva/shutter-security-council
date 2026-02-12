@@ -2,7 +2,7 @@
 pragma solidity ^0.8.19;
 
 import {Test} from "forge-std/Test.sol";
-import {Enum, SecurityCouncilAzorius} from "src/SecurityCouncilAzorius.sol";
+import {SecurityCouncilAzorius} from "src/SecurityCouncilAzorius.sol";
 import {MockTarget} from "test/mocks/MockTarget.sol";
 
 interface IAzoriusFork {
@@ -11,21 +11,18 @@ interface IAzoriusFork {
         DelegateCall
     }
 
-    enum ProposalState {
-        NULL,
-        ACTIVE,
-        TIMELOCKED,
-        EXECUTABLE,
-        EXECUTED,
-        EXPIRED
-    }
-
     struct Transaction {
         address to;
         uint256 value;
         bytes data;
         Operation operation;
     }
+
+    function owner() external view returns (address);
+    function avatar() external view returns (address);
+    function target() external view returns (address);
+    function guard() external view returns (address);
+    function setGuard(address _guard) external;
 
     function totalProposalCount() external view returns (uint32);
 
@@ -43,8 +40,6 @@ interface IAzoriusFork {
         bytes[] calldata data,
         Operation[] calldata operations
     ) external;
-
-    function proposalState(uint32 proposalId) external view returns (ProposalState);
 
     function getProposal(uint32 proposalId)
         external
@@ -69,12 +64,10 @@ interface IVotesFork {
     function delegate(address delegatee) external;
 }
 
-interface ISafeProxyLike {
+interface ISafeLike {
     function masterCopy() external view returns (address);
-}
-
-interface ISafeVersionLike {
     function VERSION() external view returns (string memory);
+    function isModuleEnabled(address module) external view returns (bool);
 }
 
 contract ShutterGovernanceBaseForkTest is Test {
@@ -92,6 +85,10 @@ contract ShutterGovernanceBaseForkTest is Test {
     string internal constant SAFE_VERSION = "1.3.0";
     uint256 internal constant VOTING_PERIOD_BLOCKS = 21_600;
     uint256 internal constant INTEGRATION_NUMBER = 424_242;
+
+    // keccak256("guard_manager.guard.address") from Safe GuardManager.
+    bytes32 internal constant SAFE_GUARD_STORAGE_SLOT =
+        0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     /*//////////////////////////////////////////////////////////////////////////
                                   TEST STATE
@@ -133,73 +130,83 @@ contract ShutterGovernanceBaseForkTest is Test {
         vm.label(address(integrationTarget), "IntegrationTarget");
     }
 
-    function test_mainnetAddressesAndSafeVersion() public view {
+    function test_mainnetAddressesAndLiveConfig() public view {
         if (!forkReady) return;
 
         assertEq(block.chainid, 1, "Fork is not Ethereum mainnet");
         assertGt(SHUTTER_SAFE.code.length, 0, "Safe has no code");
         assertGt(address(AZORIUS).code.length, 0, "Azorius has no code");
 
-        address singleton = ISafeProxyLike(SHUTTER_SAFE).masterCopy();
-        assertEq(singleton, SHUTTER_SAFE_SINGLETON, "Unexpected Safe singleton");
+        ISafeLike safe = ISafeLike(SHUTTER_SAFE);
+        assertEq(safe.masterCopy(), SHUTTER_SAFE_SINGLETON, "Unexpected Safe singleton");
+        assertEq(safe.VERSION(), SAFE_VERSION, "Unexpected Safe version");
+        assertTrue(safe.isModuleEnabled(address(AZORIUS)), "Azorius is not enabled as Safe module");
 
-        string memory version = ISafeVersionLike(SHUTTER_SAFE).VERSION();
-        assertEq(version, SAFE_VERSION, "Unexpected Safe version");
+        assertEq(AZORIUS.owner(), SHUTTER_SAFE, "Azorius owner mismatch");
+        assertEq(AZORIUS.avatar(), SHUTTER_SAFE, "Azorius avatar mismatch");
+        assertEq(AZORIUS.target(), SHUTTER_SAFE, "Azorius target mismatch");
+        assertEq(AZORIUS.guard(), address(0), "Unexpected non-zero Azorius guard");
+        assertEq(_safeGuard(), address(0), "Unexpected non-zero Safe guard");
     }
 
-    function test_completeForkIntegration_proposalLifecycleAndVetoPath() public {
+    function test_completeForkIntegration_moduleGuardVetoBlocksAndUnvetoAllows() public {
         if (!forkReady) return;
 
-        _delegateVoters();
-
-        IAzoriusFork.Transaction[] memory transactions = _prepareTransactions();
-        uint32 proposalId = AZORIUS.totalProposalCount();
-
-        vm.prank(proposer);
-        AZORIUS.submitProposal(address(LINEAR_ERC20_VOTING), hex"", transactions, _metadata());
-
-        vm.roll(block.number + 1);
-        _voteForProposal(proposalId);
-        vm.roll(block.number + VOTING_PERIOD_BLOCKS);
-
-        bool passed = LINEAR_ERC20_VOTING.isPassed(proposalId);
-        assertTrue(passed, "Proposal did not pass");
-
-        // If a timelock is configured, advance timestamp to post-timelock.
-        (,, uint32 timelockPeriod,,) = AZORIUS.getProposal(proposalId);
-        if (timelockPeriod > 0) {
-            vm.warp(block.timestamp + timelockPeriod + 1);
-        }
-
-        // Guard veto integration: vetoed proposal tx must be blocked by checkTransaction.
-        guard.vetoProposal(proposalId);
-
+        uint32 proposalId = _submitAndPassProposal();
         (
             address[] memory targets,
             uint256[] memory values,
             bytes[] memory data,
             IAzoriusFork.Operation[] memory operations
-        ) = _prepareTransactionsForExecution(transactions);
-
-        Enum.Operation checkOp = Enum.Operation(uint8(operations[0]));
+        ) = _proposalExecutionArrays();
         bytes32 txHash = AZORIUS.getTxHash(targets[0], values[0], data[0], operations[0]);
 
+        // Set guard on Azorius module (actual execution path for proposals).
+        vm.prank(SHUTTER_SAFE);
+        AZORIUS.setGuard(address(guard));
+        assertEq(AZORIUS.guard(), address(guard), "Azorius guard not set");
+
+        guard.vetoProposal(proposalId);
+        assertTrue(guard.vetoedTxHash(txHash), "Expected tx hash vetoed");
+
         vm.expectRevert(abi.encodeWithSelector(SecurityCouncilAzorius.TransactionVetoed.selector, txHash));
-        guard.checkTransaction(
-            targets[0], values[0], data[0], checkOp, 0, 0, 0, address(0), payable(address(0)), "", address(AZORIUS)
-        );
+        AZORIUS.executeProposal(proposalId, targets, values, data, operations);
 
         guard.unvetoProposal(proposalId);
-        guard.checkTransaction(
-            targets[0], values[0], data[0], checkOp, 0, 0, 0, address(0), payable(address(0)), "", address(AZORIUS)
-        );
+        assertFalse(guard.vetoedTxHash(txHash), "Expected tx hash unvetoed");
 
         (,, uint32 executionCounterBefore,) = _proposalMeta(proposalId);
         AZORIUS.executeProposal(proposalId, targets, values, data, operations);
         (,, uint32 executionCounterAfter,) = _proposalMeta(proposalId);
 
-        assertEq(executionCounterAfter, executionCounterBefore + uint32(transactions.length), "Execution counter mismatch");
+        assertEq(executionCounterAfter, executionCounterBefore + uint32(targets.length), "Execution counter mismatch");
         assertEq(integrationTarget.number(), INTEGRATION_NUMBER, "Proposal side effect not observed");
+    }
+
+    function test_edgeCase_safeGuardOnlyDoesNotBlockModuleExecution() public {
+        if (!forkReady) return;
+
+        uint32 proposalId = _submitAndPassProposal();
+        (
+            address[] memory targets,
+            uint256[] memory values,
+            bytes[] memory data,
+            IAzoriusFork.Operation[] memory operations
+        ) = _proposalExecutionArrays();
+        bytes32 txHash = AZORIUS.getTxHash(targets[0], values[0], data[0], operations[0]);
+
+        // Misconfiguration edge case: Safe guard is set, but Azorius module guard remains unset.
+        _setSafeGuard(address(guard));
+        assertEq(_safeGuard(), address(guard), "Safe guard not set");
+        assertEq(AZORIUS.guard(), address(0), "Azorius guard should be unset");
+
+        guard.vetoProposal(proposalId);
+        assertTrue(guard.vetoedTxHash(txHash), "Expected tx hash vetoed");
+
+        // Safe 1.3.0 module execution path bypasses Safe guard checks.
+        AZORIUS.executeProposal(proposalId, targets, values, data, operations);
+        assertEq(integrationTarget.number(), INTEGRATION_NUMBER, "Module execution did not happen");
+        assertTrue(guard.vetoedTxHash(txHash), "Veto should still be recorded");
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -221,8 +228,45 @@ contract ShutterGovernanceBaseForkTest is Test {
         });
     }
 
+    function _proposalExecutionArrays()
+        internal
+        view
+        returns (
+            address[] memory targets,
+            uint256[] memory values,
+            bytes[] memory data,
+            IAzoriusFork.Operation[] memory operations
+        )
+    {
+        IAzoriusFork.Transaction[] memory transactions = _prepareTransactions();
+        return _prepareTransactionsForExecution(transactions);
+    }
+
     function _metadata() internal pure returns (string memory) {
         return "security-council-azorius fork integration test";
+    }
+
+    function _submitAndPassProposal() internal returns (uint32 proposalId) {
+        _delegateVoters();
+
+        IAzoriusFork.Transaction[] memory transactions = _prepareTransactions();
+        proposalId = AZORIUS.totalProposalCount();
+
+        vm.prank(proposer);
+        AZORIUS.submitProposal(address(LINEAR_ERC20_VOTING), hex"", transactions, _metadata());
+
+        vm.roll(block.number + 1);
+        _voteForProposal(proposalId);
+        vm.roll(block.number + VOTING_PERIOD_BLOCKS);
+
+        bool passed = LINEAR_ERC20_VOTING.isPassed(proposalId);
+        assertTrue(passed, "Proposal did not pass");
+
+        // If a timelock is configured, advance timestamp to post-timelock.
+        (uint32 timelockPeriod,,,) = _proposalMeta(proposalId);
+        if (timelockPeriod > 0) {
+            vm.warp(block.timestamp + timelockPeriod + 1);
+        }
     }
 
     function _delegateVoters() internal {
@@ -273,5 +317,13 @@ contract ShutterGovernanceBaseForkTest is Test {
         bytes32[] memory txHashes;
         (, txHashes, timelockPeriod, executionPeriod, executionCounter) = AZORIUS.getProposal(proposalId);
         txCount = uint32(txHashes.length);
+    }
+
+    function _setSafeGuard(address newGuard) internal {
+        vm.store(SHUTTER_SAFE, SAFE_GUARD_STORAGE_SLOT, bytes32(uint256(uint160(newGuard))));
+    }
+
+    function _safeGuard() internal view returns (address) {
+        return address(uint160(uint256(vm.load(SHUTTER_SAFE, SAFE_GUARD_STORAGE_SLOT))));
     }
 }

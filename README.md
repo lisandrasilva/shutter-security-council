@@ -1,6 +1,8 @@
 # SecurityCouncilAzorius
 
-`SecurityCouncilAzorius` is a Safe Guard that gives a designated security council emergency veto authority over Azorius proposal transactions.
+`SecurityCouncilAzorius` is an `IGuard`-compatible veto guard for Azorius proposal transactions.
+
+On Safe `1.3.0`, this guard must be installed on the Azorius module (`Azorius.setGuard(...)`) to affect module execution.
 
 This repository contains the production contract, deployment script, and verification-focused test suites for unit, lifecycle, and invariants.
 
@@ -10,7 +12,7 @@ Azorius proposals can execute multiple transactions over time. This guard adds a
 
 - Council can veto or unveto at proposal scope (`vetoProposal`, `unvetoProposal`)
 - Council can veto or unveto at transaction-hash scope (`vetoTx`, `unvetoTx`)
-- Safe execution is blocked if `checkTransaction` resolves to a vetoed Azorius transaction hash
+- Azorius module execution is blocked if `checkTransaction` resolves to a vetoed Azorius transaction hash
 
 ## Architecture and responsibilities
 
@@ -18,7 +20,7 @@ Azorius proposals can execute multiple transactions over time. This guard adds a
 - Integration points:
   - Reads proposal transaction hashes from Azorius (`IAzorius.getProposal`)
   - Computes execution hash through Azorius (`IAzorius.getTxHash`)
-  - Enforces gate through the Safe Guard interface (`IGuard.checkTransaction`)
+  - Enforces gate through `IGuard.checkTransaction` when configured as the Azorius module guard
 - Authority model:
   - `council` is immutable
   - `azorius` is immutable
@@ -65,6 +67,12 @@ If two proposals include the same tx hash, vetoing either one blocks both execut
 - Reverts with `TransactionVetoed(txHash)` when hash is vetoed
 - `checkAfterExecution(...)` is intentionally a no-op
 
+### 5. Guard placement requirement (Safe 1.3.0)
+
+- Safe `1.3.0` does not run Safe transaction guards for module execution (`execTransactionFromModule`).
+- Azorius proposal execution uses the module path.
+- Therefore veto enforcement requires setting this contract as Azorius guard (`Azorius.setGuard(address(guard))`).
+
 ### 4. Visibility and standards
 
 - `isProposalVetoed(uint32 proposalId)` returns true only when all proposal hashes are currently vetoed
@@ -77,14 +85,14 @@ If two proposals include the same tx hash, vetoing either one blocks both execut
 ### Phase A: Deployment and activation
 
 1. Deploy guard with immutable `council` and `azorius` addresses.
-2. Install guard on target Safe.
+2. Install guard on Azorius module (`setGuard`) for module-path enforcement.
 3. Verify configuration and run post-activation smoke checks.
 
 ### Phase B: Normal governance execution path
 
 1. Azorius proposal exists with one or more tx hashes.
 2. A module execution attempts to run one transaction through Safe.
-3. Safe invokes `checkTransaction` on the guard.
+3. Azorius module invokes `checkTransaction` on its configured guard.
 4. Guard asks Azorius to compute tx hash from execution params.
 5. If hash is not vetoed, execution continues.
 
@@ -185,5 +193,6 @@ Required environment variables:
 - Review constructor args from approved source of truth.
 - Dry-run deploy and guard wiring on a fork of target chain.
 - Verify source and constructor args on explorer.
+- Verify `Azorius.guard()` equals deployed `SecurityCouncilAzorius` address.
 - Rehearse veto and unveto procedures with operators.
 - Validate council rotation runbook before first production deployment.
