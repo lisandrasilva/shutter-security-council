@@ -209,6 +209,25 @@ contract ShutterGovernanceBaseForkTest is Test {
         assertTrue(guard.vetoedTxHash(txHash), "Veto should still be recorded");
     }
 
+    function test_edgeCase_tamperedExecutionPayloadReverts() public {
+        if (!forkReady) return;
+
+        uint32 proposalId = _submitAndPassProposal();
+        (
+            address[] memory targets,
+            uint256[] memory values,
+            bytes[] memory data,
+            IAzoriusFork.Operation[] memory operations
+        ) = _proposalExecutionArrays();
+
+        // Executor tampering should fail because Azorius validates tx hash against stored proposal hashes.
+        data[0] = abi.encodeCall(MockTarget.setNumber, (INTEGRATION_NUMBER + 1));
+
+        vm.expectRevert();
+        AZORIUS.executeProposal(proposalId, targets, values, data, operations);
+        assertEq(integrationTarget.number(), 0, "Unexpected side effect after tampered execution");
+    }
+
     /*//////////////////////////////////////////////////////////////////////////
                                   HELPERS
     //////////////////////////////////////////////////////////////////////////*/
