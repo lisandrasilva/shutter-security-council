@@ -28,6 +28,7 @@ Detailed integration and address registry:
 
 - `docs/INTEGRATIONS_AND_ADDRESSES.md`
   - includes Safe proxy address, Safe singleton address, and Safe contract version tracking per network
+  - includes current mainnet values for Safe and Azorius plus proposal-fork testing companion contracts
 
 ## Functional behavior
 
@@ -125,6 +126,7 @@ Important non-goals:
 - `test/unit/` function-level and event semantics tests
 - `test/lifecycle/` governance flow and module execution behavior
 - `test/invariant/` state and execution invariants under randomized action sequences
+- `test/fork/` fork-oriented governance scaffolding and address/version assertions
 - `docs/` security properties and operational runbooks
   - `docs/INTEGRATIONS_AND_ADDRESSES.md` interacted contracts and per-network address registry
 

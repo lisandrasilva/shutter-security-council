@@ -8,11 +8,20 @@ This document is the canonical reference for:
 
 ## Current known values (as of 2026-02-12)
 
-No production contract addresses are committed in this repository yet.
+Known integration addresses for the target setup:
 
-- `.env.example` contains placeholders
-- no `.env` with deployment values is present in this workspace
-- Safe contract version is not inferable until `SAFE_ADDRESS` is provided on a target chain
+- Safe proxy: `0x36bD3044ab68f600f6d3e081056F34f2a58432c4`
+- Safe singleton (resolved on-chain): `0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552`
+- Safe version (resolved on-chain): `1.3.0`
+- Azorius: `0xAA6BfA174d2f803b517026E93DBBEc1eBa26258e`
+- Council: not defined yet
+- SecurityCouncilAzorius: not deployed yet
+
+Governance stack addresses used in proposal-fork testing:
+
+- LinearERC20Voting: `0x4b29d8B250B8b442ECfCd3a4e3D91933d2db720F`
+- Shutter token: `0xe485E2f1bab389C08721B291f6b59780feC83Fd7`
+- Default proposer used in tests: `0x9Cc9C7F874eD77df06dCd41D95a2C858cd2a2506`
 
 ## Actual contracts expected in production
 
@@ -33,13 +42,22 @@ No production contract addresses are committed in this repository yet.
 | Council account (EOA or multisig) | Constructor arg `_council` (`COUNCIL_ADDRESS`) | Exclusive authority for veto controls | Caller for `vetoProposal`, `unvetoProposal`, `vetoTx`, `unvetoTx`, `multicall` |
 | Proposal target contracts | Proposal payload data in Azorius | Business logic executed by Safe when tx is allowed | Not called directly by guard; included in hash preimage passed to Azorius |
 
+## Governance stack contracts for fork proposal tests
+
+These are not called by the guard contract directly, but are used by forked governance-proposal test flows.
+
+| Component | Address | Role |
+| --- | --- | --- |
+| `LinearERC20Voting` | `0x4b29d8B250B8b442ECfCd3a4e3D91933d2db720F` | Azorius voting strategy used to evaluate proposal pass/fail |
+| `ShutterToken` | `0xe485E2f1bab389C08721B291f6b59780feC83Fd7` | Vote/delegation token used by voters in proposal tests |
+
 ## Address registry (fill per deployment)
 
 Do not rely on memory or chat history for addresses. Record every deployment here and keep it updated in PRs.
 
 | Network | Chain ID | Safe proxy address | Safe singleton address | Safe version | Azorius address | Council address | SecurityCouncilAzorius address | Deployment tx | Deployed at (UTC) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Mainnet | `1` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` |
+| Mainnet | `1` | `0x36bD3044ab68f600f6d3e081056F34f2a58432c4` | `0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552` | `1.3.0` | `0xAA6BfA174d2f803b517026E93DBBEc1eBa26258e` | `TBD (not defined yet)` | `TBD (not deployed yet)` | `TBD` | `TBD` |
 | Sepolia | `11155111` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` |
 
 ## Deployment input vs operational addresses
