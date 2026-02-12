@@ -24,6 +24,10 @@ Azorius proposals can execute multiple transactions over time. This guard adds a
   - `azorius` is immutable
   - only `council` can mutate veto state
 
+Detailed integration and address registry:
+
+- `docs/INTEGRATIONS_AND_ADDRESSES.md`
+
 ## Functional behavior
 
 ### 1. Veto storage model
@@ -121,6 +125,7 @@ Important non-goals:
 - `test/lifecycle/` governance flow and module execution behavior
 - `test/invariant/` state and execution invariants under randomized action sequences
 - `docs/` security properties and operational runbooks
+  - `docs/INTEGRATIONS_AND_ADDRESSES.md` interacted contracts and per-network address registry
 
 ## Testing and verification
 
