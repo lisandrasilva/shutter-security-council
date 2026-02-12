@@ -1,0 +1,21 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.19"
+evm_version = "paris"
+optimizer = true
+optimizer_runs = 10000
+via_ir = true
+fs_permissions = [{ access = "read", path = "./" }]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[fuzz]
+runs = 1024
+
+[invariant]
+runs = 256
+depth = 32
