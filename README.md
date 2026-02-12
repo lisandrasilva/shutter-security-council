@@ -27,6 +27,7 @@ Azorius proposals can execute multiple transactions over time. This guard adds a
 Detailed integration and address registry:
 
 - `docs/INTEGRATIONS_AND_ADDRESSES.md`
+  - includes Safe proxy address, Safe singleton address, and Safe contract version tracking per network
 
 ## Functional behavior
 
