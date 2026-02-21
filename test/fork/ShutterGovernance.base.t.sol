@@ -52,7 +52,10 @@ interface IAzoriusFork {
             uint32 executionCounter
         );
 
-    function getTxHash(address to, uint256 value, bytes memory data, Operation operation) external view returns (bytes32);
+    function getTxHash(address to, uint256 value, bytes memory data, Operation operation)
+        external
+        view
+        returns (bytes32);
 }
 
 interface ILinearERC20VotingFork {

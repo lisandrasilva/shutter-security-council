@@ -48,7 +48,7 @@ struct Broker {
 }
 
 struct SablierStreamParams {
-    address sablier;        // ISablierV2LockupLinear
+    address sablier; // ISablierV2LockupLinear
     address sender;
     address asset;
     Timestamps timestamps;
@@ -84,7 +84,6 @@ struct CreateRoleHatsParams {
 // ── Test contract ───────────────────────────────────────────────────────
 
 contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
-
     // ── Constants ────────────────────────────────────────────────────────
     uint256 constant FORK_BLOCK = 24493552;
 
@@ -98,8 +97,8 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     address constant EXPECTED_NEW_STRATEGY = 0x7FF645b803FF3Bc890e3568B503BC1F37d32Edd1;
 
     // Hat IDs (Hats Protocol tree encoding)
-    uint256 constant TOP_HAT_ID    = 0x0000004000000000000000000000000000000000000000000000000000000000;
-    uint256 constant ADMIN_HAT_ID  = 0x0000004000010000000000000000000000000000000000000000000000000000;
+    uint256 constant TOP_HAT_ID = 0x0000004000000000000000000000000000000000000000000000000000000000;
+    uint256 constant ADMIN_HAT_ID = 0x0000004000010000000000000000000000000000000000000000000000000000;
     uint256 constant PROPOSER_HAT_ID = 0x0000004000010002000000000000000000000000000000000000000000000000;
 
     // DecentHats addresses
@@ -151,12 +150,7 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
         return '{"title":"Hats Protocol Proposal Gating","description":"Enable hat-gated proposal creation for Shutter DAO governance"}';
     }
 
-    function _prepareTransactions()
-        internal
-        pure
-        override
-        returns (IAzoriusFork.Transaction[] memory txs)
-    {
+    function _prepareTransactions() internal pure override returns (IAzoriusFork.Transaction[] memory txs) {
         txs = new IAzoriusFork.Transaction[](5);
 
         // ── TX 0: Enable DecentHatsModificationModule on Safe ────────────
@@ -192,10 +186,7 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
             to: MODULE_PROXY_FACTORY,
             value: 0,
             data: abi.encodeWithSignature(
-                "deployModule(address,bytes,uint256)",
-                VOTING_IMPL,
-                _buildSetUpInitializer(),
-                DEPLOYMENT_SALT
+                "deployModule(address,bytes,uint256)", VOTING_IMPL, _buildSetUpInitializer(), DEPLOYMENT_SALT
             ),
             operation: IAzoriusFork.Operation.Call
         });
@@ -259,45 +250,36 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
         whitelistedHats[0] = PROPOSER_HAT_ID;
 
         bytes memory initParams = abi.encode(
-            SHUTTER_SAFE,           // owner
-            SHUTTER_TOKEN,          // governanceToken
-            address(AZORIUS),       // azoriusModule  (using the constant from base)
-            uint32(21600),          // votingPeriod   (0x5460)
-            uint256(30000),         // quorumNumerator (0x7530 = 3%)
-            uint256(500000),        // basisNumerator  (0x7a120 = 50%)
-            HATS_CONTRACT,          // hatsContract
-            whitelistedHats,        // initialWhitelistedHats
-            LIGHT_ACCOUNT_FACTORY   // lightAccountFactory
+            SHUTTER_SAFE, // owner
+            SHUTTER_TOKEN, // governanceToken
+            address(AZORIUS), // azoriusModule  (using the constant from base)
+            uint32(21600), // votingPeriod   (0x5460)
+            uint256(30000), // quorumNumerator (0x7530 = 3%)
+            uint256(500000), // basisNumerator  (0x7a120 = 50%)
+            HATS_CONTRACT, // hatsContract
+            whitelistedHats, // initialWhitelistedHats
+            LIGHT_ACCOUNT_FACTORY // lightAccountFactory
         );
 
-        return abi.encodeWithSelector(
-            bytes4(keccak256("setUp(bytes)")),
-            initParams
-        );
+        return abi.encodeWithSelector(bytes4(keccak256("setUp(bytes)")), initParams);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
 
     /// @dev Compute the EIP-1167 minimal proxy address created by ModuleProxyFactory
-    function _computeProxyAddress(
-        address factory,
-        address impl,
-        bytes memory initializer,
-        uint256 saltNonce
-    ) internal pure returns (address) {
+    function _computeProxyAddress(address factory, address impl, bytes memory initializer, uint256 saltNonce)
+        internal
+        pure
+        returns (address)
+    {
         // ModuleProxyFactory salt = keccak256(abi.encodePacked(keccak256(initializer), saltNonce))
         bytes32 salt = keccak256(abi.encodePacked(keccak256(initializer), saltNonce));
 
         // EIP-1167 minimal proxy creation code
-        bytes memory creationCode = abi.encodePacked(
-            hex"602d8060093d393df3363d3d373d3d3d363d73",
-            impl,
-            hex"5af43d82803e903d91602b57fd5bf3"
-        );
+        bytes memory creationCode =
+            abi.encodePacked(hex"602d8060093d393df3363d3d373d3d3d363d73", impl, hex"5af43d82803e903d91602b57fd5bf3");
 
-        bytes32 hash = keccak256(
-            abi.encodePacked(bytes1(0xff), factory, salt, keccak256(creationCode))
-        );
+        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), factory, salt, keccak256(creationCode)));
         return address(uint160(uint256(hash)));
     }
 
@@ -310,12 +292,8 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
 
         // Execute
         IAzoriusFork.Transaction[] memory txs = _prepareTransactions();
-        (
-            address[] memory targets,
-            uint256[] memory values,
-            bytes[] memory data,
-            IAzoriusFork.Operation[] memory ops
-        ) = _prepareTransactionsForExecution(txs);
+        (address[] memory targets, uint256[] memory values, bytes[] memory data, IAzoriusFork.Operation[] memory ops) =
+            _prepareTransactionsForExecution(txs);
 
         AZORIUS.executeProposal(proposalId, targets, values, data, ops);
     }
@@ -342,17 +320,8 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     function test_create2AddressMatchesPrediction() public {
         // Verify our parameter encoding produces the predicted proxy address
         bytes memory initializer = _buildSetUpInitializer();
-        address computed = _computeProxyAddress(
-            MODULE_PROXY_FACTORY,
-            VOTING_IMPL,
-            initializer,
-            DEPLOYMENT_SALT
-        );
-        assertEq(
-            computed,
-            EXPECTED_NEW_STRATEGY,
-            "Computed CREATE2 address must match expected new strategy"
-        );
+        address computed = _computeProxyAddress(MODULE_PROXY_FACTORY, VOTING_IMPL, initializer, DEPLOYMENT_SALT);
+        assertEq(computed, EXPECTED_NEW_STRATEGY, "Computed CREATE2 address must match expected new strategy");
     }
 
     function test_hattedUserCanPropose() public {
@@ -383,11 +352,11 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
         // Submit the proposal using original calldata
         // The original calldata is a call to submitProposal on Azorius
         uint32 proposalId = AZORIUS.totalProposalCount();
-        
+
         vm.prank(proposer);
         (bool success,) = address(AZORIUS).call(originalCalldata);
         assertTrue(success, "Original calldata proposal submission failed");
-        
+
         // Verify the proposal was created
         assertEq(AZORIUS.totalProposalCount(), proposalId + 1, "Proposal count should have increased");
 
@@ -410,12 +379,8 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
         // because the original calldata might have different encoding
         // but the proposal hash should still match since the transaction data should be equivalent
         IAzoriusFork.Transaction[] memory txs = _prepareTransactions();
-        (
-            address[] memory targets,
-            uint256[] memory values,
-            bytes[] memory data,
-            IAzoriusFork.Operation[] memory ops
-        ) = _prepareTransactionsForExecution(txs);
+        (address[] memory targets, uint256[] memory values, bytes[] memory data, IAzoriusFork.Operation[] memory ops) =
+            _prepareTransactionsForExecution(txs);
 
         // Try to execute the proposal
         // Note: This might fail due to the delegatecall issue described in the task
@@ -426,7 +391,7 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
         } catch Error(string memory reason) {
             // Log the failure reason for debugging
             emit log(string.concat("Proposal execution failed with reason: ", reason));
-            
+
             // Even if execution fails, we can simulate the state changes
             // to test what would happen if the proposal executed successfully
             _simulateProposalExecution();
@@ -435,7 +400,7 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
             // Log low-level revert data
             emit log("Proposal execution failed with low-level revert");
             emit log_bytes(lowLevelData);
-            
+
             // Simulate the execution to test expected outcomes
             _simulateProposalExecution();
             _verifySimulatedOutcomes();
@@ -479,7 +444,7 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
                 // For delegatecall, we expect this to fail due to the module architecture issue
                 // So we'll skip the actual call and manually set up the expected state
                 emit log("Skipping delegatecall simulation due to known architecture issue");
-                
+
                 // Instead, manually give the hatted user the proposer hat
                 // This simulates what would happen if the createRoleHats call succeeded
                 vm.mockCall(
@@ -495,14 +460,10 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     function _verifySimulatedOutcomes() internal {
         // Since we simulated the execution, verify the strategy deployment worked
         // (TX3 should have succeeded even in simulation)
-        address deployedStrategy = _computeProxyAddress(
-            MODULE_PROXY_FACTORY,
-            VOTING_IMPL,
-            _buildSetUpInitializer(),
-            DEPLOYMENT_SALT
-        );
+        address deployedStrategy =
+            _computeProxyAddress(MODULE_PROXY_FACTORY, VOTING_IMPL, _buildSetUpInitializer(), DEPLOYMENT_SALT);
         assertEq(deployedStrategy, EXPECTED_NEW_STRATEGY, "Strategy deployment address mismatch");
-        
+
         // Check if the strategy contract exists (should exist if TX3 succeeded)
         assertGt(EXPECTED_NEW_STRATEGY.code.length, 0, "New strategy should have been deployed");
 

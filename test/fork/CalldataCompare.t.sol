@@ -16,7 +16,6 @@ import {
  * @notice Reads original calldata from file, builds our version, compares byte-by-byte.
  */
 contract CalldataCompareTest is Test {
-
     address constant SHUTTER_SAFE = 0x36bD3044ab68f600f6d3e081056F34f2a58432c4;
     address constant DECENT_HATS = 0x9755dD7E27E90b4fC00E50EC14DD2D08a79064d3;
     IAzoriusFork constant AZORIUS = IAzoriusFork(0xAA6BfA174d2f803b517026E93DBBEc1eBa26258e);
@@ -44,30 +43,30 @@ contract CalldataCompareTest is Test {
         // 1. Read original calldata from file
         string memory rawHex = vm.readFile("test/fork/original_calldata.txt");
         bytes memory original = vm.parseBytes(rawHex);
-        
+
         // 2. Build our version of the full submitProposal calldata
         IAzoriusFork.Transaction[] memory txs = _prepareTransactions();
-        
+
         bytes memory generated = abi.encodeWithSelector(
             IAzoriusFork.submitProposal.selector,
-            LINEAR_ERC20_VOTING,       // strategy
-            bytes(""),                  // metadata bytes (empty)
-            txs,                       // transactions
+            LINEAR_ERC20_VOTING, // strategy
+            bytes(""), // metadata bytes (empty)
+            txs, // transactions
             '{"title":"test","description":"test (hoping this comes to my wallet for me to cancel first lol)"}'
         );
-        
+
         emit log_named_uint("Original length", original.length);
         emit log_named_uint("Generated length", generated.length);
-        
+
         // 3. Compare byte-by-byte
         if (original.length != generated.length) {
             emit log("LENGTH MISMATCH");
         }
-        
+
         uint256 minLen = original.length < generated.length ? original.length : generated.length;
         uint256 mismatches = 0;
         uint256 firstMismatch = type(uint256).max;
-        
+
         for (uint256 i = 0; i < minLen; i++) {
             if (original[i] != generated[i]) {
                 if (mismatches < 5) {
@@ -80,19 +79,19 @@ contract CalldataCompareTest is Test {
                 mismatches++;
             }
         }
-        
+
         if (mismatches == 0 && original.length == generated.length) {
             emit log("FULL CALLDATA MATCH!");
         } else {
             emit log_named_uint("Total mismatched bytes", mismatches);
             emit log_named_uint("First mismatch at byte", firstMismatch);
         }
-        
+
         assertEq(keccak256(original), keccak256(generated), "Full calldata mismatch");
     }
-    
+
     // ── Build transactions (same as HatsProposalGatingTest) ─────────
-    
+
     function _prepareTransactions() internal pure returns (IAzoriusFork.Transaction[] memory txs) {
         txs = new IAzoriusFork.Transaction[](5);
 
@@ -106,21 +105,14 @@ contract CalldataCompareTest is Test {
 
         // TX1: createRoleHats (DelegateCall)
         txs[1] = IAzoriusFork.Transaction({
-            to: DECENT_HATS,
-            value: 0,
-            data: _buildCreateRoleHatsData(),
-            operation: IAzoriusFork.Operation.DelegateCall
+            to: DECENT_HATS, value: 0, data: _buildCreateRoleHatsData(), operation: IAzoriusFork.Operation.DelegateCall
         });
 
         // TX2: disableModule
         txs[2] = IAzoriusFork.Transaction({
             to: SHUTTER_SAFE,
             value: 0,
-            data: abi.encodeWithSignature(
-                "disableModule(address,address)",
-                address(0x1),
-                DECENT_HATS
-            ),
+            data: abi.encodeWithSignature("disableModule(address,address)", address(0x1), DECENT_HATS),
             operation: IAzoriusFork.Operation.Call
         });
 
@@ -129,10 +121,7 @@ contract CalldataCompareTest is Test {
             to: MODULE_PROXY_FACTORY,
             value: 0,
             data: abi.encodeWithSignature(
-                "deployModule(address,bytes,uint256)",
-                VOTING_IMPL,
-                _buildSetUpInitializer(),
-                DEPLOYMENT_SALT
+                "deployModule(address,bytes,uint256)", VOTING_IMPL, _buildSetUpInitializer(), DEPLOYMENT_SALT
             ),
             operation: IAzoriusFork.Operation.Call
         });
@@ -145,7 +134,7 @@ contract CalldataCompareTest is Test {
             operation: IAzoriusFork.Operation.Call
         });
     }
-    
+
     function _buildCreateRoleHatsData() internal pure returns (bytes memory) {
         HatParams[] memory hats = new HatParams[](1);
         SablierStreamParams[] memory emptyStreams = new SablierStreamParams[](0);
@@ -172,7 +161,7 @@ contract CalldataCompareTest is Test {
         });
         return abi.encodeWithSelector(bytes4(0x0ad5e427), params);
     }
-    
+
     function _buildSetUpInitializer() internal pure returns (bytes memory) {
         uint256[] memory whitelistedHats = new uint256[](1);
         whitelistedHats[0] = PROPOSER_HAT_ID;
@@ -189,7 +178,7 @@ contract CalldataCompareTest is Test {
         );
         return abi.encodeWithSelector(bytes4(keccak256("setUp(bytes)")), initParams);
     }
-    
+
     function _wordAt(bytes memory data, uint256 offset) internal pure returns (bytes32 result) {
         if (offset + 32 > data.length) return bytes32(0);
         assembly { result := mload(add(add(data, 32), offset)) }

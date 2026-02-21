@@ -2,25 +2,19 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
-import {
-    CreateRoleHatsParams,
-    HatParams,
-    SablierStreamParams,
-    Timestamps,
-    Broker
-} from "./HatsProposalGating.t.sol";
+import {CreateRoleHatsParams, HatParams, SablierStreamParams, Timestamps, Broker} from "./HatsProposalGating.t.sol";
 
 contract CalldataEmitTest is Test {
     function test_emitTx1() public {
         bytes memory gen = _buildCreateRoleHatsData();
         emit log_named_bytes("GENERATED_TX1", gen);
     }
-    
+
     function test_emitTx3Initializer() public {
         bytes memory gen = _buildSetUpInitializer();
         emit log_named_bytes("GENERATED_INITIALIZER", gen);
     }
-    
+
     function _buildCreateRoleHatsData() internal pure returns (bytes memory) {
         HatParams[] memory hats = new HatParams[](1);
         SablierStreamParams[] memory emptyStreams = new SablierStreamParams[](0);
@@ -47,7 +41,7 @@ contract CalldataEmitTest is Test {
         });
         return abi.encodeWithSelector(bytes4(0x0ad5e427), params);
     }
-    
+
     function _buildSetUpInitializer() internal pure returns (bytes memory) {
         uint256[] memory whitelistedHats = new uint256[](1);
         whitelistedHats[0] = 0x0000004000010002000000000000000000000000000000000000000000000000;
