@@ -100,7 +100,7 @@ contract ShutterGovernanceBaseForkTest is Test {
     SecurityCouncilAzorius internal guard;
     MockTarget internal integrationTarget;
 
-    function setUp() public {
+    function setUp() public virtual {
         proposer = DEFAULT_PROPOSER;
         voters = _defaultVoters();
 
@@ -237,7 +237,7 @@ contract ShutterGovernanceBaseForkTest is Test {
         votersArray[0] = SHUTTER_SAFE;
     }
 
-    function _prepareTransactions() internal view returns (IAzoriusFork.Transaction[] memory transactions) {
+    function _prepareTransactions() internal view virtual returns (IAzoriusFork.Transaction[] memory transactions) {
         transactions = new IAzoriusFork.Transaction[](1);
         transactions[0] = IAzoriusFork.Transaction({
             to: address(integrationTarget),
@@ -261,7 +261,7 @@ contract ShutterGovernanceBaseForkTest is Test {
         return _prepareTransactionsForExecution(transactions);
     }
 
-    function _metadata() internal pure returns (string memory) {
+    function _metadata() internal pure virtual returns (string memory) {
         return "security-council-azorius fork integration test";
     }
 
