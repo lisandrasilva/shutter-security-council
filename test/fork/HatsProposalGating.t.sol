@@ -102,7 +102,7 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     address constant HATS_MODULE_FACTORY = 0x0a3f85fa597B6a967271286aA0724811acDF5CD9;
     address constant HATS_ELECTIONS_IMPL = 0xd3b916a8F0C4f9D1d5B6Af29c3C012dbd4f3149E;
 
-    address constant PROPOSER_HAT_WEARER = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
+    address constant PROPOSER_HAT_WEARER = address(0xCAFA);
     uint256 constant DEPLOYMENT_SALT = 0xb3b402edfcc21f484f1f5018c55461995d61d0f5ca5b5fada2e0354e33001c07;
     address constant LIGHT_ACCOUNT_FACTORY = 0x0000000000400CdFef5E2714E63d8040b700BC24;
 
@@ -142,7 +142,15 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
         return '{"title":"Hats Protocol Proposal Gating","description":"Enable hat-gated proposal creation for Shutter DAO governance"}';
     }
 
-    function _prepareTransactions() internal pure override returns (IAzoriusFork.Transaction[] memory txs) {
+    function _prepareTransactions() internal pure override returns (IAzoriusFork.Transaction[] memory) {
+        return _prepareTransactionsForWearer(PROPOSER_HAT_WEARER);
+    }
+
+    function _prepareTransactionsForWearer(address wearer)
+        internal
+        pure
+        returns (IAzoriusFork.Transaction[] memory txs)
+    {
         txs = new IAzoriusFork.Transaction[](5);
 
         txs[0] = IAzoriusFork.Transaction({
@@ -155,7 +163,7 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
         txs[1] = IAzoriusFork.Transaction({
             to: DECENT_HATS,
             value: 0,
-            data: _buildCreateRoleHatCalldata(PROPOSER_HAT_WEARER),
+            data: _buildCreateRoleHatCalldata(wearer),
             operation: IAzoriusFork.Operation.Call
         });
 
@@ -221,9 +229,9 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
             SHUTTER_SAFE,
             SHUTTER_TOKEN,
             address(AZORIUS),
-            uint32(21600),
-            uint256(30000),
-            uint256(500000),
+            uint32(21600), // votingPeriod (~3 days in blocks)
+            uint256(30000), // quorumNumerator (3%)
+            uint256(500000), // basisNumerator (50% to pass)
             HATS_PROTOCOL,
             whitelistedHats,
             LIGHT_ACCOUNT_FACTORY
@@ -283,15 +291,21 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     function test_hattedUserCanPropose() public {
         _executeGovernanceProposal();
 
+        address recipient = address(0xCAFE);
+        uint256 amount = 1 ether;
+        uint256 balanceBefore = recipient.balance;
+
         IAzoriusFork.Transaction[] memory txs = new IAzoriusFork.Transaction[](1);
         txs[0] = IAzoriusFork.Transaction({
-            to: address(0xCAFE),
-            value: 0,
+            to: recipient,
+            value: amount,
             data: "",
             operation: IAzoriusFork.Operation.Call
         });
 
         _submitPassAndExecuteProposal(PROPOSER_HAT_WEARER, HATS_VOTING_STRATEGY, txs);
+
+        assertEq(recipient.balance, balanceBefore + amount, "ETH transfer should have executed");
     }
 
     function test_hatEnablesProposalWithoutVotingPower() public {
