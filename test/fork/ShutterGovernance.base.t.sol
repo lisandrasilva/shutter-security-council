@@ -86,10 +86,6 @@ abstract contract ShutterGovernanceBaseForkTest is Test {
     string internal constant SAFE_VERSION = "1.3.0";
     uint256 internal constant VOTING_PERIOD_BLOCKS = 21_600;
 
-    // keccak256("guard_manager.guard.address") from Safe GuardManager.
-    bytes32 internal constant SAFE_GUARD_STORAGE_SLOT =
-        0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-
     /*//////////////////////////////////////////////////////////////////////////
                                   TEST STATE
     //////////////////////////////////////////////////////////////////////////*/
@@ -244,11 +240,4 @@ abstract contract ShutterGovernanceBaseForkTest is Test {
         txCount = uint32(txHashes.length);
     }
 
-    function _setSafeGuard(address newGuard) internal {
-        vm.store(SHUTTER_SAFE, SAFE_GUARD_STORAGE_SLOT, bytes32(uint256(uint160(newGuard))));
-    }
-
-    function _safeGuard() internal view returns (address) {
-        return address(uint160(uint256(vm.load(SHUTTER_SAFE, SAFE_GUARD_STORAGE_SLOT))));
-    }
 }

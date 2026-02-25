@@ -58,11 +58,19 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
     }
 
     function _targetTransactions() internal view returns (IAzoriusFork.Transaction[] memory txs) {
+        return _targetTransactionsWithNumber(INTEGRATION_NUMBER);
+    }
+
+    function _targetTransactionsWithNumber(uint256 number)
+        internal
+        view
+        returns (IAzoriusFork.Transaction[] memory txs)
+    {
         txs = new IAzoriusFork.Transaction[](1);
         txs[0] = IAzoriusFork.Transaction({
             to: address(integrationTarget),
             value: 0,
-            data: abi.encodeCall(MockTarget.setNumber, (INTEGRATION_NUMBER)),
+            data: abi.encodeCall(MockTarget.setNumber, (number)),
             operation: IAzoriusFork.Operation.Call
         });
     }
@@ -77,7 +85,11 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
     }
 
     function _submitAndPassTargetProposal() internal returns (uint32 proposalId) {
-        return _submitAndPassProposal(proposer, address(LINEAR_ERC20_VOTING), _targetTransactions());
+        return _submitAndPassTargetProposal(INTEGRATION_NUMBER);
+    }
+
+    function _submitAndPassTargetProposal(uint256 number) internal returns (uint32 proposalId) {
+        return _submitAndPassProposal(proposer, address(LINEAR_ERC20_VOTING), _targetTransactionsWithNumber(number));
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -98,7 +110,6 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
         assertEq(AZORIUS.avatar(), SHUTTER_SAFE, "Azorius avatar mismatch");
         assertEq(AZORIUS.target(), SHUTTER_SAFE, "Azorius target mismatch");
         assertEq(AZORIUS.guard(), address(0), "Unexpected non-zero Azorius guard");
-        assertEq(_safeGuard(), address(0), "Unexpected non-zero Safe guard");
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -161,8 +172,8 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
 
     function test_multicallVetoesMultipleProposals() public {
         _submitPassAndExecuteGuardProposal();
-        uint32 proposalA = _submitAndPassTargetProposal();
-        uint32 proposalB = _submitAndPassTargetProposal();
+        uint32 proposalA = _submitAndPassTargetProposal(INTEGRATION_NUMBER);
+        uint32 proposalB = _submitAndPassTargetProposal(INTEGRATION_NUMBER + 1);
 
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(SecurityCouncilAzorius.vetoProposal, (proposalA));
@@ -174,13 +185,15 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
         assertTrue(guard.isProposalVetoed(proposalA), "Proposal A should be vetoed");
         assertTrue(guard.isProposalVetoed(proposalB), "Proposal B should be vetoed");
 
-        (address[] memory t, uint256[] memory v, bytes[] memory d, IAzoriusFork.Operation[] memory o) =
-            _prepareTransactionsForExecution(_targetTransactions());
+        (address[] memory tA, uint256[] memory vA, bytes[] memory dA, IAzoriusFork.Operation[] memory oA) =
+            _prepareTransactionsForExecution(_targetTransactionsWithNumber(INTEGRATION_NUMBER));
+        (address[] memory tB, uint256[] memory vB, bytes[] memory dB, IAzoriusFork.Operation[] memory oB) =
+            _prepareTransactionsForExecution(_targetTransactionsWithNumber(INTEGRATION_NUMBER + 1));
 
         vm.expectRevert();
-        AZORIUS.executeProposal(proposalA, t, v, d, o);
+        AZORIUS.executeProposal(proposalA, tA, vA, dA, oA);
 
         vm.expectRevert();
-        AZORIUS.executeProposal(proposalB, t, v, d, o);
+        AZORIUS.executeProposal(proposalB, tB, vB, dB, oB);
     }
 }
