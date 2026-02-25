@@ -6,7 +6,6 @@ pragma solidity ^0.8.19;
  * @notice Fork test proving that 1 000 proposals can be submitted to
  *         Azorius on mainnet without hitting any gas or storage limit.
  */
-
 import {ShutterGovernanceBaseForkTest, IAzoriusFork} from "./ShutterGovernance.base.t.sol";
 import {MockTarget} from "test/mocks/MockTarget.sol";
 
@@ -19,12 +18,7 @@ contract ProposalSpamTest is ShutterGovernanceBaseForkTest {
         vm.label(address(target), "SpamTarget");
     }
 
-    function _prepareTransactions()
-        internal
-        view
-        override
-        returns (IAzoriusFork.Transaction[] memory txs)
-    {} // Not used — we build per-iteration transactions below.
+    function _prepareTransactions() internal view override returns (IAzoriusFork.Transaction[] memory txs) {} // Not used — we build per-iteration transactions below.
 
     function _txsForNumber(uint256 number) internal view returns (IAzoriusFork.Transaction[] memory txs) {
         txs = new IAzoriusFork.Transaction[](1);

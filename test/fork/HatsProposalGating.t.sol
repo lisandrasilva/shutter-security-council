@@ -16,7 +16,6 @@ pragma solidity ^0.8.19;
  *
  * Fork block: 24_493_552
  */
-
 import {ShutterGovernanceBaseForkTest, IAzoriusFork} from "./ShutterGovernance.base.t.sol";
 
 // ── Interfaces ──────────────────────────────────────────────────────────
@@ -125,7 +124,8 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     // ── Overrides ────────────────────────────────────────────────────────
 
     function _metadata() internal pure override returns (string memory) {
-        return '{"title":"Hats Protocol Proposal Gating","description":"Enable hat-gated proposal creation for Shutter DAO governance"}';
+        return
+        '{"title":"Hats Protocol Proposal Gating","description":"Enable hat-gated proposal creation for Shutter DAO governance"}';
     }
 
     function _prepareTransactions() internal pure override returns (IAzoriusFork.Transaction[] memory) {
@@ -315,12 +315,8 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
         uint256 balanceBefore = recipient.balance;
 
         IAzoriusFork.Transaction[] memory txs = new IAzoriusFork.Transaction[](1);
-        txs[0] = IAzoriusFork.Transaction({
-            to: recipient,
-            value: amount,
-            data: "",
-            operation: IAzoriusFork.Operation.Call
-        });
+        txs[0] =
+            IAzoriusFork.Transaction({to: recipient, value: amount, data: "", operation: IAzoriusFork.Operation.Call});
 
         _submitPassAndExecuteProposal(_proposerHatWearers()[0], HATS_VOTING_STRATEGY, txs);
 

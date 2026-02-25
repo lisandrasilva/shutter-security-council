@@ -13,7 +13,6 @@ pragma solidity ^0.8.19;
  * Covers: veto, unveto, isProposalVetoed, multicall,
  *         Safe guard edge case, tampered payload rejection.
  */
-
 import {ShutterGovernanceBaseForkTest, IAzoriusFork, ISafeLike} from "./ShutterGovernance.base.t.sol";
 import {SecurityCouncilAzorius} from "src/SecurityCouncilAzorius.sol";
 import {MockTarget} from "test/mocks/MockTarget.sol";
@@ -40,12 +39,7 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
                              TRANSACTION BUILDERS
     //////////////////////////////////////////////////////////////////////////*/
 
-    function _prepareTransactions()
-        internal
-        view
-        override
-        returns (IAzoriusFork.Transaction[] memory txs)
-    {} // Not used — each flow has its own transaction builder.
+    function _prepareTransactions() internal view override returns (IAzoriusFork.Transaction[] memory txs) {} // Not used — each flow has its own transaction builder.
 
     function _guardInstallTransactions() internal view returns (IAzoriusFork.Transaction[] memory txs) {
         txs = new IAzoriusFork.Transaction[](1);
@@ -196,5 +190,4 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
         vm.expectRevert();
         AZORIUS.executeProposal(proposalB, tB, vB, dB, oB);
     }
-
 }

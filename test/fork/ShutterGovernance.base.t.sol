@@ -150,11 +150,10 @@ abstract contract ShutterGovernanceBaseForkTest is Test {
         return _submitAndPassProposal(proposer, address(LINEAR_ERC20_VOTING), _prepareTransactions());
     }
 
-    function _submitAndPassProposal(
-        address _proposer,
-        address strategy,
-        IAzoriusFork.Transaction[] memory transactions
-    ) internal returns (uint32 proposalId) {
+    function _submitAndPassProposal(address _proposer, address strategy, IAzoriusFork.Transaction[] memory transactions)
+        internal
+        returns (uint32 proposalId)
+    {
         _delegateVoters();
 
         proposalId = AZORIUS.totalProposalCount();
@@ -181,12 +180,8 @@ abstract contract ShutterGovernanceBaseForkTest is Test {
     ) internal {
         uint32 proposalId = _submitAndPassProposal(_proposer, strategy, transactions);
 
-        (
-            address[] memory targets,
-            uint256[] memory values,
-            bytes[] memory data,
-            IAzoriusFork.Operation[] memory ops
-        ) = _prepareTransactionsForExecution(transactions);
+        (address[] memory targets, uint256[] memory values, bytes[] memory data, IAzoriusFork.Operation[] memory ops) =
+            _prepareTransactionsForExecution(transactions);
 
         AZORIUS.executeProposal(proposalId, targets, values, data, ops);
     }
@@ -239,5 +234,4 @@ abstract contract ShutterGovernanceBaseForkTest is Test {
         (, txHashes, timelockPeriod, executionPeriod, executionCounter) = AZORIUS.getProposal(proposalId);
         txCount = uint32(txHashes.length);
     }
-
 }
