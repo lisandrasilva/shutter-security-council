@@ -102,9 +102,15 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     address constant HATS_MODULE_FACTORY = 0x0a3f85fa597B6a967271286aA0724811acDF5CD9;
     address constant HATS_ELECTIONS_IMPL = 0xd3b916a8F0C4f9D1d5B6Af29c3C012dbd4f3149E;
 
-    address constant PROPOSER_HAT_WEARER = address(0xCAFA);
     uint256 constant DEPLOYMENT_SALT = 0xb3b402edfcc21f484f1f5018c55461995d61d0f5ca5b5fada2e0354e33001c07;
     address constant LIGHT_ACCOUNT_FACTORY = 0x0000000000400CdFef5E2714E63d8040b700BC24;
+
+    // ── Hat wearers (edit this list to add/remove proposers) ────────────
+
+    function _proposerHatWearers() internal pure returns (address[] memory wearers) {
+        wearers = new address[](1);
+        wearers[0] = address(0xCAFA);
+    }
 
     // ── Setup ────────────────────────────────────────────────────────────
 
@@ -143,10 +149,20 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     }
 
     function _prepareTransactions() internal pure override returns (IAzoriusFork.Transaction[] memory) {
-        return _prepareTransactionsForWearer(PROPOSER_HAT_WEARER);
+        return _prepareTransactionsForWearers(_proposerHatWearers());
     }
 
     function _prepareTransactionsForWearer(address wearer)
+        internal
+        pure
+        returns (IAzoriusFork.Transaction[] memory)
+    {
+        address[] memory wearers = new address[](1);
+        wearers[0] = wearer;
+        return _prepareTransactionsForWearers(wearers);
+    }
+
+    function _prepareTransactionsForWearers(address[] memory wearers)
         internal
         pure
         returns (IAzoriusFork.Transaction[] memory txs)
@@ -163,7 +179,7 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
         txs[1] = IAzoriusFork.Transaction({
             to: DECENT_HATS,
             value: 0,
-            data: _buildCreateRoleHatCalldata(wearer),
+            data: _buildCreateRoleHatCalldata(wearers),
             operation: IAzoriusFork.Operation.Call
         });
 
@@ -194,16 +210,24 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     // ── Calldata builders ───────────────────────────────────────────────
 
     function _buildCreateRoleHatCalldata(address wearer) internal pure returns (bytes memory) {
-        HatParams[] memory hats = new HatParams[](1);
-        hats[0] = HatParams({
-            wearer: wearer,
-            details: "ipfs://QmXN9tFHPL6VjqrpTZ6cEnXz1ULpeiwTPVUZ1oTdZJK51s",
-            imageURI: "",
-            sablierStreamsParams: new SablierStreamParams[](0),
-            termEndDateTs: 0,
-            maxSupply: 1,
-            isMutable: true
-        });
+        address[] memory wearers = new address[](1);
+        wearers[0] = wearer;
+        return _buildCreateRoleHatCalldata(wearers);
+    }
+
+    function _buildCreateRoleHatCalldata(address[] memory wearers) internal pure returns (bytes memory) {
+        HatParams[] memory hats = new HatParams[](wearers.length);
+        for (uint256 i = 0; i < wearers.length; i++) {
+            hats[i] = HatParams({
+                wearer: wearers[i],
+                details: "ipfs://QmXN9tFHPL6VjqrpTZ6cEnXz1ULpeiwTPVUZ1oTdZJK51s",
+                imageURI: "",
+                sablierStreamsParams: new SablierStreamParams[](0),
+                termEndDateTs: 0,
+                maxSupply: 1,
+                isMutable: true
+            });
+        }
 
         CreateRoleHatsParams memory params = CreateRoleHatsParams({
             hatsProtocol: HATS_PROTOCOL,
@@ -303,7 +327,7 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
             operation: IAzoriusFork.Operation.Call
         });
 
-        _submitPassAndExecuteProposal(PROPOSER_HAT_WEARER, HATS_VOTING_STRATEGY, txs);
+        _submitPassAndExecuteProposal(_proposerHatWearers()[0], HATS_VOTING_STRATEGY, txs);
 
         assertEq(recipient.balance, balanceBefore + amount, "ETH transfer should have executed");
     }
