@@ -67,7 +67,7 @@ gantt
     Execution Window (7 days)        :exec, after timelock, 7d
 
     section Council
-    Veto Window (3 days)             :crit, veto, after vote, 3d
+    Veto Window (3 days)             :crit, veto, after vote, 3du
 ```
 
 **Total: 6 days submit-to-executable, 13 days submit-to-expiry.**

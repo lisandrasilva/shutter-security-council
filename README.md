@@ -6,6 +6,15 @@ On Safe `1.3.0`, this guard must be installed on the Azorius module (`Azorius.se
 
 This repository contains the production contract, deployment script, and verification-focused test suites for unit, lifecycle, and invariants.
 
+## Documentation Index
+
+| Document | Description |
+| --- | --- |
+| [Governance Parameters](docs/GOVERNANCE_PARAMETERS.md) | Current on-chain parameters, suggested changes, before/after timeline, and security analysis |
+| [Integrations and Addresses](docs/INTEGRATIONS_AND_ADDRESSES.md) | Contract dependencies, per-network address registry, and deployment verification checklist |
+| [Operations Runbook](docs/OPERATIONS.md) | Cross-proposal hash collisions, council rotation, guard placement, and deployment controls |
+| [Security Properties](docs/SECURITY_PROPERTIES.md) | Core guarantees, event semantics, non-goals, and verification status |
+
 ## Why this exists
 
 Azorius proposals can execute multiple transactions over time. This guard adds a council-controlled safety layer at execution time:
