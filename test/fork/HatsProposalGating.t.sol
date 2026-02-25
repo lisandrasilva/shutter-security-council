@@ -12,6 +12,7 @@ pragma solidity ^0.8.19;
  * 2. Disable DecentHatsModificationModule
  * 3. Deploy LinearERC20VotingWithHatsProposalCreationV1 via ModuleProxyFactory
  * 4. Enable new strategy on Azorius
+ * 5. Disable old LinearERC20Voting strategy on Azorius
  *
  * Fork block: 24_493_552
  */
@@ -107,40 +108,19 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
 
     // ── Hat wearers (edit this list to add/remove proposers) ────────────
 
-    function _proposerHatWearers() internal pure returns (address[] memory wearers) {
+    function _proposerHatWearers() internal pure virtual returns (address[] memory wearers) {
         wearers = new address[](1);
         wearers[0] = address(0xCAFA);
     }
 
     // ── Setup ────────────────────────────────────────────────────────────
 
-    function _forkBlockNumber() internal pure override returns (uint256) {
-        return 24_493_552;
-    }
-
     function setUp() public override {
-        string memory rpcUrl = _rpcUrl();
-        vm.skip(bytes(rpcUrl).length == 0);
-
-        vm.createSelectFork(rpcUrl, _forkBlockNumber());
-
-        proposer = DEFAULT_PROPOSER;
-        voters = _defaultVoters();
-
-        vm.label(address(AZORIUS), "Azorius");
-        vm.label(address(LINEAR_ERC20_VOTING), "LinearERC20Voting");
-        vm.label(SHUTTER_SAFE, "ShutterSafe");
-        vm.label(SHUTTER_TOKEN, "ShutterToken");
+        super.setUp();
         vm.label(DECENT_HATS, "DecentHats");
         vm.label(MODULE_PROXY_FACTORY, "ModuleProxyFactory");
         vm.label(HATS_VOTING_STRATEGY, "HatsVotingStrategy");
     }
-
-    // ── Skip inherited tests that require SecurityCouncilAzorius guard ──
-
-    function test_completeForkIntegration_moduleGuardVetoBlocksAndUnvetoAllows() public override {}
-    function test_edgeCase_safeGuardOnlyDoesNotBlockModuleExecution() public override {}
-    function test_edgeCase_tamperedExecutionPayloadReverts() public override {}
 
     // ── Overrides ────────────────────────────────────────────────────────
 
@@ -149,17 +129,23 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     }
 
     function _prepareTransactions() internal pure override returns (IAzoriusFork.Transaction[] memory) {
-        return _prepareTransactionsForWearers(_proposerHatWearers());
-    }
+        IAzoriusFork.Transaction[] memory baseTxs = _prepareTransactionsForWearers(_proposerHatWearers());
 
-    function _prepareTransactionsForWearer(address wearer)
-        internal
-        pure
-        returns (IAzoriusFork.Transaction[] memory)
-    {
-        address[] memory wearers = new address[](1);
-        wearers[0] = wearer;
-        return _prepareTransactionsForWearers(wearers);
+        IAzoriusFork.Transaction[] memory txs = new IAzoriusFork.Transaction[](baseTxs.length + 1);
+        for (uint256 i = 0; i < baseTxs.length; i++) {
+            txs[i] = baseTxs[i];
+        }
+
+        txs[baseTxs.length] = IAzoriusFork.Transaction({
+            to: address(AZORIUS),
+            value: 0,
+            data: abi.encodeWithSignature(
+                "disableStrategy(address,address)", HATS_VOTING_STRATEGY, address(LINEAR_ERC20_VOTING)
+            ),
+            operation: IAzoriusFork.Operation.Call
+        });
+
+        return txs;
     }
 
     function _prepareTransactionsForWearers(address[] memory wearers)
@@ -309,6 +295,15 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
         assertFalse(
             ISafe(SHUTTER_SAFE).isModuleEnabled(DECENT_HATS),
             "DecentHatsModificationModule should be disabled after proposal"
+        );
+    }
+
+    function test_oldStrategyDisabled() public {
+        _executeGovernanceProposal();
+
+        assertFalse(
+            IAzoriusStrategy(address(AZORIUS)).isStrategyEnabled(address(LINEAR_ERC20_VOTING)),
+            "Old LinearERC20Voting strategy should be disabled after proposal"
         );
     }
 
