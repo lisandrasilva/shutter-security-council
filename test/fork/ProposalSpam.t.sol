@@ -14,6 +14,7 @@ contract ProposalSpamTest is ShutterGovernanceBaseForkTest {
 
     function setUp() public override {
         super.setUp();
+        vm.skip(vm.envOr("CI", false), "ProposalSpam skipped in CI (117M gas)");
         target = new MockTarget();
         vm.label(address(target), "SpamTarget");
     }
