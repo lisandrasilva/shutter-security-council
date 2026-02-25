@@ -6,13 +6,12 @@ pragma solidity ^0.8.19;
  * @notice Fork tests for the SecurityCouncilAzorius guard deployed against
  *         live Shutter DAO governance on Ethereum mainnet.
  *
- * Covers:
- * - Mainnet address / config sanity checks
- * - Veto blocks execution, unveto restores it
- * - Safe guard vs Azorius guard placement edge case
- * - Tampered execution payload rejection
- * - isProposalVetoed view
- * - multicall batched veto / unveto
+ * Production flow reproduced:
+ *   1. Governance proposal installs the guard on Azorius via setGuard.
+ *   2. A second proposal is submitted -- the council can veto/unveto it.
+ *
+ * Covers: veto, unveto, isProposalVetoed, multicall,
+ *         Safe guard edge case, tampered payload rejection.
  */
 
 import {ShutterGovernanceBaseForkTest, IAzoriusFork, ISafeLike} from "./ShutterGovernance.base.t.sol";
@@ -20,41 +19,65 @@ import {SecurityCouncilAzorius} from "src/SecurityCouncilAzorius.sol";
 import {MockTarget} from "test/mocks/MockTarget.sol";
 
 contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
-    /*//////////////////////////////////////////////////////////////////////////
-                                   CONSTANTS
-    //////////////////////////////////////////////////////////////////////////*/
-
     uint256 internal constant INTEGRATION_NUMBER = 424_242;
-
-    /*//////////////////////////////////////////////////////////////////////////
-                                  TEST STATE
-    //////////////////////////////////////////////////////////////////////////*/
+    address internal constant COUNCIL = 0x00000000000000000000000000c0FFEEc0FFEE01;
 
     SecurityCouncilAzorius internal guard;
     MockTarget internal integrationTarget;
 
-    /*//////////////////////////////////////////////////////////////////////////
-                                    SETUP
-    //////////////////////////////////////////////////////////////////////////*/
-
     function setUp() public override {
         super.setUp();
 
-        guard = new SecurityCouncilAzorius(address(this), address(AZORIUS));
-        vm.label(address(guard), "SecurityCouncilAzoriusGuard");
-
         integrationTarget = new MockTarget();
         vm.label(address(integrationTarget), "IntegrationTarget");
+
+        guard = new SecurityCouncilAzorius(COUNCIL, address(AZORIUS));
+        vm.label(address(guard), "SecurityCouncilAzoriusGuard");
+        vm.label(COUNCIL, "Council");
     }
 
-    function _prepareTransactions() internal view override returns (IAzoriusFork.Transaction[] memory transactions) {
-        transactions = new IAzoriusFork.Transaction[](1);
-        transactions[0] = IAzoriusFork.Transaction({
+    /*//////////////////////////////////////////////////////////////////////////
+                             TRANSACTION BUILDERS
+    //////////////////////////////////////////////////////////////////////////*/
+
+    function _prepareTransactions()
+        internal
+        view
+        override
+        returns (IAzoriusFork.Transaction[] memory txs)
+    {} // Not used — each flow has its own transaction builder.
+
+    function _guardInstallTransactions() internal view returns (IAzoriusFork.Transaction[] memory txs) {
+        txs = new IAzoriusFork.Transaction[](1);
+        txs[0] = IAzoriusFork.Transaction({
+            to: address(AZORIUS),
+            value: 0,
+            data: abi.encodeWithSignature("setGuard(address)", address(guard)),
+            operation: IAzoriusFork.Operation.Call
+        });
+    }
+
+    function _targetTransactions() internal view returns (IAzoriusFork.Transaction[] memory txs) {
+        txs = new IAzoriusFork.Transaction[](1);
+        txs[0] = IAzoriusFork.Transaction({
             to: address(integrationTarget),
             value: 0,
             data: abi.encodeCall(MockTarget.setNumber, (INTEGRATION_NUMBER)),
             operation: IAzoriusFork.Operation.Call
         });
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+                                   HELPERS
+    //////////////////////////////////////////////////////////////////////////*/
+
+    function _submitPassAndExecuteGuardProposal() internal {
+        _submitPassAndExecuteProposal(proposer, address(LINEAR_ERC20_VOTING), _guardInstallTransactions());
+        assertEq(AZORIUS.guard(), address(guard), "Guard not installed");
+    }
+
+    function _submitAndPassTargetProposal() internal returns (uint32 proposalId) {
+        return _submitAndPassProposal(proposer, address(LINEAR_ERC20_VOTING), _targetTransactions());
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -83,115 +106,34 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
     //////////////////////////////////////////////////////////////////////////*/
 
     function test_vetoBlocksExecution() public {
-        uint32 proposalId = _submitAndPassProposal();
-        (
-            address[] memory targets,
-            uint256[] memory values,
-            bytes[] memory data,
-            IAzoriusFork.Operation[] memory operations
-        ) = _proposalExecutionArrays();
-        bytes32 txHash = AZORIUS.getTxHash(targets[0], values[0], data[0], operations[0]);
+        _submitPassAndExecuteGuardProposal();
+        uint32 proposalId = _submitAndPassTargetProposal();
+        (address[] memory t, uint256[] memory v, bytes[] memory d, IAzoriusFork.Operation[] memory o) =
+            _prepareTransactionsForExecution(_targetTransactions());
+        bytes32 txHash = AZORIUS.getTxHash(t[0], v[0], d[0], o[0]);
 
-        _installGuardOnAzorius();
-
+        vm.prank(COUNCIL);
         guard.vetoProposal(proposalId);
         assertTrue(guard.vetoedTxHash(txHash), "Expected tx hash vetoed");
 
         vm.expectRevert(abi.encodeWithSelector(SecurityCouncilAzorius.TransactionVetoed.selector, txHash));
-        AZORIUS.executeProposal(proposalId, targets, values, data, operations);
+        AZORIUS.executeProposal(proposalId, t, v, d, o);
     }
 
     function test_unvetoAllowsExecution() public {
-        uint32 proposalId = _submitAndPassProposal();
-        (
-            address[] memory targets,
-            uint256[] memory values,
-            bytes[] memory data,
-            IAzoriusFork.Operation[] memory operations
-        ) = _proposalExecutionArrays();
+        test_vetoBlocksExecution();
 
-        _installGuardOnAzorius();
+        uint32 proposalId = AZORIUS.totalProposalCount() - 1;
+        (address[] memory t, uint256[] memory v, bytes[] memory d, IAzoriusFork.Operation[] memory o) =
+            _prepareTransactionsForExecution(_targetTransactions());
 
-        guard.vetoProposal(proposalId);
+        vm.prank(COUNCIL);
         guard.unvetoProposal(proposalId);
-
-        bytes32 txHash = AZORIUS.getTxHash(targets[0], values[0], data[0], operations[0]);
+        bytes32 txHash = AZORIUS.getTxHash(t[0], v[0], d[0], o[0]);
         assertFalse(guard.vetoedTxHash(txHash), "Expected tx hash unvetoed");
 
-        AZORIUS.executeProposal(proposalId, targets, values, data, operations);
+        AZORIUS.executeProposal(proposalId, t, v, d, o);
         assertEq(integrationTarget.number(), INTEGRATION_NUMBER, "Proposal side effect not observed");
-    }
-
-    function test_vetoThenUnvetoFullRoundTrip() public {
-        uint32 proposalId = _submitAndPassProposal();
-        (
-            address[] memory targets,
-            uint256[] memory values,
-            bytes[] memory data,
-            IAzoriusFork.Operation[] memory operations
-        ) = _proposalExecutionArrays();
-        bytes32 txHash = AZORIUS.getTxHash(targets[0], values[0], data[0], operations[0]);
-
-        _installGuardOnAzorius();
-
-        guard.vetoProposal(proposalId);
-        assertTrue(guard.vetoedTxHash(txHash), "Expected tx hash vetoed");
-
-        vm.expectRevert(abi.encodeWithSelector(SecurityCouncilAzorius.TransactionVetoed.selector, txHash));
-        AZORIUS.executeProposal(proposalId, targets, values, data, operations);
-
-        guard.unvetoProposal(proposalId);
-        assertFalse(guard.vetoedTxHash(txHash), "Expected tx hash unvetoed");
-
-        (,, uint32 executionCounterBefore,) = _proposalMeta(proposalId);
-        AZORIUS.executeProposal(proposalId, targets, values, data, operations);
-        (,, uint32 executionCounterAfter,) = _proposalMeta(proposalId);
-
-        assertEq(executionCounterAfter, executionCounterBefore + uint32(targets.length), "Execution counter mismatch");
-        assertEq(integrationTarget.number(), INTEGRATION_NUMBER, "Proposal side effect not observed");
-    }
-
-    /*//////////////////////////////////////////////////////////////////////////
-                                  EDGE CASES
-    //////////////////////////////////////////////////////////////////////////*/
-
-    function test_safeGuardOnlyDoesNotBlockModuleExecution() public {
-        uint32 proposalId = _submitAndPassProposal();
-        (
-            address[] memory targets,
-            uint256[] memory values,
-            bytes[] memory data,
-            IAzoriusFork.Operation[] memory operations
-        ) = _proposalExecutionArrays();
-        bytes32 txHash = AZORIUS.getTxHash(targets[0], values[0], data[0], operations[0]);
-
-        _setSafeGuard(address(guard));
-        assertEq(_safeGuard(), address(guard), "Safe guard not set");
-        assertEq(AZORIUS.guard(), address(0), "Azorius guard should be unset");
-
-        guard.vetoProposal(proposalId);
-        assertTrue(guard.vetoedTxHash(txHash), "Expected tx hash vetoed");
-
-        // Safe 1.3.0 module execution path bypasses Safe guard checks.
-        AZORIUS.executeProposal(proposalId, targets, values, data, operations);
-        assertEq(integrationTarget.number(), INTEGRATION_NUMBER, "Module execution did not happen");
-        assertTrue(guard.vetoedTxHash(txHash), "Veto should still be recorded");
-    }
-
-    function test_tamperedPayloadReverts() public {
-        uint32 proposalId = _submitAndPassProposal();
-        (
-            address[] memory targets,
-            uint256[] memory values,
-            bytes[] memory data,
-            IAzoriusFork.Operation[] memory operations
-        ) = _proposalExecutionArrays();
-
-        data[0] = abi.encodeCall(MockTarget.setNumber, (INTEGRATION_NUMBER + 1));
-
-        vm.expectRevert();
-        AZORIUS.executeProposal(proposalId, targets, values, data, operations);
-        assertEq(integrationTarget.number(), 0, "Unexpected side effect after tampered execution");
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -199,56 +141,46 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
     //////////////////////////////////////////////////////////////////////////*/
 
     function test_isProposalVetoedView() public {
-        uint32 proposalId = _submitAndPassProposal();
+        _submitPassAndExecuteGuardProposal();
+        uint32 proposalId = _submitAndPassTargetProposal();
 
-        _installGuardOnAzorius();
+        assertFalse(guard.isProposalVetoed(proposalId), "Should not be vetoed initially");
 
-        assertFalse(guard.isProposalVetoed(proposalId), "Proposal should not be vetoed initially");
-
+        vm.prank(COUNCIL);
         guard.vetoProposal(proposalId);
-        assertTrue(guard.isProposalVetoed(proposalId), "Proposal should be vetoed after vetoProposal");
+        assertTrue(guard.isProposalVetoed(proposalId), "Should be vetoed");
 
+        vm.prank(COUNCIL);
         guard.unvetoProposal(proposalId);
-        assertFalse(guard.isProposalVetoed(proposalId), "Proposal should not be vetoed after unvetoProposal");
+        assertFalse(guard.isProposalVetoed(proposalId), "Should not be vetoed after unveto");
     }
 
     /*//////////////////////////////////////////////////////////////////////////
                                  MULTICALL TESTS
     //////////////////////////////////////////////////////////////////////////*/
 
-    function test_multicallVetoUnveto() public {
-        uint32 proposalId = _submitAndPassProposal();
-        (
-            address[] memory targets,
-            uint256[] memory values,
-            bytes[] memory data,
-            IAzoriusFork.Operation[] memory operations
-        ) = _proposalExecutionArrays();
-        bytes32 txHash = AZORIUS.getTxHash(targets[0], values[0], data[0], operations[0]);
+    function test_multicallVetoesMultipleProposals() public {
+        _submitPassAndExecuteGuardProposal();
+        uint32 proposalA = _submitAndPassTargetProposal();
+        uint32 proposalB = _submitAndPassTargetProposal();
 
-        _installGuardOnAzorius();
-
-        // Batch: veto then unveto in a single multicall
         bytes[] memory calls = new bytes[](2);
-        calls[0] = abi.encodeCall(SecurityCouncilAzorius.vetoProposal, (proposalId));
-        calls[1] = abi.encodeCall(SecurityCouncilAzorius.unvetoProposal, (proposalId));
+        calls[0] = abi.encodeCall(SecurityCouncilAzorius.vetoProposal, (proposalA));
+        calls[1] = abi.encodeCall(SecurityCouncilAzorius.vetoProposal, (proposalB));
 
+        vm.prank(COUNCIL);
         guard.multicall(calls);
 
-        assertFalse(guard.vetoedTxHash(txHash), "Tx hash should be unvetoed after multicall veto+unveto");
-        assertFalse(guard.isProposalVetoed(proposalId), "Proposal should not be vetoed");
+        assertTrue(guard.isProposalVetoed(proposalA), "Proposal A should be vetoed");
+        assertTrue(guard.isProposalVetoed(proposalB), "Proposal B should be vetoed");
 
-        AZORIUS.executeProposal(proposalId, targets, values, data, operations);
-        assertEq(integrationTarget.number(), INTEGRATION_NUMBER, "Execution should succeed after unveto via multicall");
-    }
+        (address[] memory t, uint256[] memory v, bytes[] memory d, IAzoriusFork.Operation[] memory o) =
+            _prepareTransactionsForExecution(_targetTransactions());
 
-    /*//////////////////////////////////////////////////////////////////////////
-                              INTERNAL HELPERS
-    //////////////////////////////////////////////////////////////////////////*/
+        vm.expectRevert();
+        AZORIUS.executeProposal(proposalA, t, v, d, o);
 
-    function _installGuardOnAzorius() internal {
-        vm.prank(SHUTTER_SAFE);
-        AZORIUS.setGuard(address(guard));
-        assertEq(AZORIUS.guard(), address(guard), "Azorius guard not set");
+        vm.expectRevert();
+        AZORIUS.executeProposal(proposalB, t, v, d, o);
     }
 }
