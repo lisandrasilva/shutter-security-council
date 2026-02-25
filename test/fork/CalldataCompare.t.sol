@@ -29,6 +29,7 @@ contract CalldataCompareTest is Test {
     address constant HATS_MODULE_FACTORY = 0x0a3f85fa597B6a967271286aA0724811acDF5CD9;
     address constant HATS_ELECTIONS_IMPL = 0xd3b916a8F0C4f9D1d5B6Af29c3C012dbd4f3149E;
     address constant HATTED_USER = 0xf7253A0E87E39d2cD6365919D4a3D56D431D0041;
+    address constant NEW_HATTED_USER = 0x76A6D08b82034b397E7e09dAe4377C18F132BbB8;
     address constant MODULE_PROXY_FACTORY = 0x000000000000aDdB49795b0f9bA5BC298cDda236;
     address constant VOTING_IMPL = 0x065bDFeE6d7b70b00bbF629aF76362fcDc693e04;
     address constant EXPECTED_NEW_STRATEGY = 0x7FF645b803FF3Bc890e3568B503BC1F37d32Edd1;
@@ -90,12 +91,67 @@ contract CalldataCompareTest is Test {
         assertEq(keccak256(original), keccak256(generated), "Full calldata mismatch");
     }
 
+    function test_newHattedUserCalldataComparison() public {
+        string memory rawHex = vm.readFile("test/fork/new_hatted_user_calldata.txt");
+        bytes memory original = vm.parseBytes(rawHex);
+
+        IAzoriusFork.Transaction[] memory txs = _prepareTransactionsWithWearer(NEW_HATTED_USER);
+
+        bytes memory generated = abi.encodeWithSelector(
+            IAzoriusFork.submitProposal.selector,
+            LINEAR_ERC20_VOTING,
+            bytes(""),
+            txs,
+            '{"title":"test","description":"test (hoping this comes to my wallet for me to cancel first lol)"}'
+        );
+
+        emit log_named_uint("Original length", original.length);
+        emit log_named_uint("Generated length", generated.length);
+
+        if (original.length != generated.length) {
+            emit log("LENGTH MISMATCH");
+        }
+
+        uint256 minLen = original.length < generated.length ? original.length : generated.length;
+        uint256 mismatches = 0;
+        uint256 firstMismatch = type(uint256).max;
+
+        for (uint256 i = 0; i < minLen; i++) {
+            if (original[i] != generated[i]) {
+                if (mismatches < 5) {
+                    emit log_named_uint("Mismatch at byte", i);
+                    emit log_named_uint("  word index", i / 32);
+                    emit log_named_bytes32("  original word", _wordAt(original, (i / 32) * 32));
+                    emit log_named_bytes32("  generated word", _wordAt(generated, (i / 32) * 32));
+                }
+                if (firstMismatch == type(uint256).max) firstMismatch = i;
+                mismatches++;
+            }
+        }
+
+        if (mismatches == 0 && original.length == generated.length) {
+            emit log("FULL CALLDATA MATCH!");
+        } else {
+            emit log_named_uint("Total mismatched bytes", mismatches);
+            emit log_named_uint("First mismatch at byte", firstMismatch);
+        }
+
+        assertEq(keccak256(original), keccak256(generated), "New hatted user calldata mismatch");
+    }
+
     // ── Build transactions (same as HatsProposalGatingTest) ─────────
 
-    function _prepareTransactions() internal pure returns (IAzoriusFork.Transaction[] memory txs) {
+    function _prepareTransactions() internal pure returns (IAzoriusFork.Transaction[] memory) {
+        return _prepareTransactionsWithWearer(HATTED_USER);
+    }
+
+    function _prepareTransactionsWithWearer(address hattedUser)
+        internal
+        pure
+        returns (IAzoriusFork.Transaction[] memory txs)
+    {
         txs = new IAzoriusFork.Transaction[](5);
 
-        // TX0: enableModule
         txs[0] = IAzoriusFork.Transaction({
             to: SHUTTER_SAFE,
             value: 0,
@@ -103,12 +159,13 @@ contract CalldataCompareTest is Test {
             operation: IAzoriusFork.Operation.Call
         });
 
-        // TX1: createRoleHats (DelegateCall)
         txs[1] = IAzoriusFork.Transaction({
-            to: DECENT_HATS, value: 0, data: _buildCreateRoleHatsData(), operation: IAzoriusFork.Operation.DelegateCall
+            to: DECENT_HATS,
+            value: 0,
+            data: _buildCreateRoleHatsData(hattedUser),
+            operation: IAzoriusFork.Operation.DelegateCall
         });
 
-        // TX2: disableModule
         txs[2] = IAzoriusFork.Transaction({
             to: SHUTTER_SAFE,
             value: 0,
@@ -116,7 +173,6 @@ contract CalldataCompareTest is Test {
             operation: IAzoriusFork.Operation.Call
         });
 
-        // TX3: deployModule
         txs[3] = IAzoriusFork.Transaction({
             to: MODULE_PROXY_FACTORY,
             value: 0,
@@ -126,7 +182,6 @@ contract CalldataCompareTest is Test {
             operation: IAzoriusFork.Operation.Call
         });
 
-        // TX4: enableStrategy
         txs[4] = IAzoriusFork.Transaction({
             to: address(AZORIUS),
             value: 0,
@@ -135,11 +190,11 @@ contract CalldataCompareTest is Test {
         });
     }
 
-    function _buildCreateRoleHatsData() internal pure returns (bytes memory) {
+    function _buildCreateRoleHatsData(address hattedUser) internal pure returns (bytes memory) {
         HatParams[] memory hats = new HatParams[](1);
         SablierStreamParams[] memory emptyStreams = new SablierStreamParams[](0);
         hats[0] = HatParams({
-            wearer: HATTED_USER,
+            wearer: hattedUser,
             details: "ipfs://QmXN9tFHPL6VjqrpTZ6cEnXz1ULpeiwTPVUZ1oTdZJK51s",
             imageURI: "",
             sablierStreamsParams: emptyStreams,

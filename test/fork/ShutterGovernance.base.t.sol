@@ -97,45 +97,47 @@ contract ShutterGovernanceBaseForkTest is Test {
                                   TEST STATE
     //////////////////////////////////////////////////////////////////////////*/
 
-    bool internal forkReady;
     address internal proposer;
     address[] internal voters;
     SecurityCouncilAzorius internal guard;
     MockTarget internal integrationTarget;
 
+    function _rpcUrl() internal view returns (string memory rpcUrl) {
+        rpcUrl = vm.envOr("MAINNET_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) rpcUrl = vm.envOr("RPC_URL", string(""));
+    }
+
+    function _forkBlockNumber() internal pure virtual returns (uint256) {
+        return 0; // 0 = latest
+    }
+
     function setUp() public virtual {
+        string memory rpcUrl = _rpcUrl();
+        vm.skip(bytes(rpcUrl).length == 0);
+
+        uint256 blockNum = _forkBlockNumber();
+        if (blockNum > 0) {
+            vm.createSelectFork(rpcUrl, blockNum);
+        } else {
+            vm.createSelectFork(rpcUrl);
+        }
+
         proposer = DEFAULT_PROPOSER;
         voters = _defaultVoters();
-
-        string memory rpcUrl = vm.envOr("MAINNET_RPC_URL", string(""));
-        if (bytes(rpcUrl).length == 0) {
-            rpcUrl = vm.envOr("RPC_URL", string(""));
-        }
-        if (bytes(rpcUrl).length == 0) {
-            emit log("Skipping fork tests: set MAINNET_RPC_URL (or RPC_URL).");
-            return;
-        }
-
-        vm.createSelectFork(rpcUrl);
-        forkReady = true;
 
         vm.label(address(AZORIUS), "Azorius");
         vm.label(address(LINEAR_ERC20_VOTING), "LinearERC20Voting");
         vm.label(SHUTTER_SAFE, "ShutterSafe");
         vm.label(SHUTTER_TOKEN, "ShutterToken");
 
-        // Use this test contract as council for fork integration checks.
         guard = new SecurityCouncilAzorius(address(this), address(AZORIUS));
         vm.label(address(guard), "SecurityCouncilAzoriusTestGuard");
 
-        // Integration target used to assert real execution effects through Azorius -> Safe.
         integrationTarget = new MockTarget();
         vm.label(address(integrationTarget), "IntegrationTarget");
     }
 
     function test_mainnetAddressesAndLiveConfig() public view {
-        if (!forkReady) return;
-
         assertEq(block.chainid, 1, "Fork is not Ethereum mainnet");
         assertGt(SHUTTER_SAFE.code.length, 0, "Safe has no code");
         assertGt(address(AZORIUS).code.length, 0, "Azorius has no code");
@@ -152,9 +154,7 @@ contract ShutterGovernanceBaseForkTest is Test {
         assertEq(_safeGuard(), address(0), "Unexpected non-zero Safe guard");
     }
 
-    function test_completeForkIntegration_moduleGuardVetoBlocksAndUnvetoAllows() public {
-        if (!forkReady) return;
-
+    function test_completeForkIntegration_moduleGuardVetoBlocksAndUnvetoAllows() public virtual {
         uint32 proposalId = _submitAndPassProposal();
         (
             address[] memory targets,
@@ -164,7 +164,6 @@ contract ShutterGovernanceBaseForkTest is Test {
         ) = _proposalExecutionArrays();
         bytes32 txHash = AZORIUS.getTxHash(targets[0], values[0], data[0], operations[0]);
 
-        // Set guard on Azorius module (actual execution path for proposals).
         vm.prank(SHUTTER_SAFE);
         AZORIUS.setGuard(address(guard));
         assertEq(AZORIUS.guard(), address(guard), "Azorius guard not set");
@@ -186,9 +185,7 @@ contract ShutterGovernanceBaseForkTest is Test {
         assertEq(integrationTarget.number(), INTEGRATION_NUMBER, "Proposal side effect not observed");
     }
 
-    function test_edgeCase_safeGuardOnlyDoesNotBlockModuleExecution() public {
-        if (!forkReady) return;
-
+    function test_edgeCase_safeGuardOnlyDoesNotBlockModuleExecution() public virtual {
         uint32 proposalId = _submitAndPassProposal();
         (
             address[] memory targets,
@@ -198,7 +195,6 @@ contract ShutterGovernanceBaseForkTest is Test {
         ) = _proposalExecutionArrays();
         bytes32 txHash = AZORIUS.getTxHash(targets[0], values[0], data[0], operations[0]);
 
-        // Misconfiguration edge case: Safe guard is set, but Azorius module guard remains unset.
         _setSafeGuard(address(guard));
         assertEq(_safeGuard(), address(guard), "Safe guard not set");
         assertEq(AZORIUS.guard(), address(0), "Azorius guard should be unset");
@@ -212,9 +208,7 @@ contract ShutterGovernanceBaseForkTest is Test {
         assertTrue(guard.vetoedTxHash(txHash), "Veto should still be recorded");
     }
 
-    function test_edgeCase_tamperedExecutionPayloadReverts() public {
-        if (!forkReady) return;
-
+    function test_edgeCase_tamperedExecutionPayloadReverts() public virtual {
         uint32 proposalId = _submitAndPassProposal();
         (
             address[] memory targets,
@@ -223,7 +217,6 @@ contract ShutterGovernanceBaseForkTest is Test {
             IAzoriusFork.Operation[] memory operations
         ) = _proposalExecutionArrays();
 
-        // Executor tampering should fail because Azorius validates tx hash against stored proposal hashes.
         data[0] = abi.encodeCall(MockTarget.setNumber, (INTEGRATION_NUMBER + 1));
 
         vm.expectRevert();
@@ -269,26 +262,48 @@ contract ShutterGovernanceBaseForkTest is Test {
     }
 
     function _submitAndPassProposal() internal returns (uint32 proposalId) {
+        return _submitAndPassProposal(proposer, address(LINEAR_ERC20_VOTING), _prepareTransactions());
+    }
+
+    function _submitAndPassProposal(
+        address _proposer,
+        address strategy,
+        IAzoriusFork.Transaction[] memory transactions
+    ) internal returns (uint32 proposalId) {
         _delegateVoters();
 
-        IAzoriusFork.Transaction[] memory transactions = _prepareTransactions();
         proposalId = AZORIUS.totalProposalCount();
 
-        vm.prank(proposer);
-        AZORIUS.submitProposal(address(LINEAR_ERC20_VOTING), hex"", transactions, _metadata());
+        vm.prank(_proposer);
+        AZORIUS.submitProposal(strategy, hex"", transactions, _metadata());
 
         vm.roll(block.number + 1);
-        _voteForProposal(proposalId);
+        _voteOnProposal(proposalId, strategy);
         vm.roll(block.number + VOTING_PERIOD_BLOCKS);
 
-        bool passed = LINEAR_ERC20_VOTING.isPassed(proposalId);
-        assertTrue(passed, "Proposal did not pass");
+        assertTrue(ILinearERC20VotingFork(strategy).isPassed(proposalId), "Proposal did not pass");
 
-        // If a timelock is configured, advance timestamp to post-timelock.
         (uint32 timelockPeriod,,,) = _proposalMeta(proposalId);
         if (timelockPeriod > 0) {
             vm.warp(block.timestamp + timelockPeriod + 1);
         }
+    }
+
+    function _submitPassAndExecuteProposal(
+        address _proposer,
+        address strategy,
+        IAzoriusFork.Transaction[] memory transactions
+    ) internal {
+        uint32 proposalId = _submitAndPassProposal(_proposer, strategy, transactions);
+
+        (
+            address[] memory targets,
+            uint256[] memory values,
+            bytes[] memory data,
+            IAzoriusFork.Operation[] memory ops
+        ) = _prepareTransactionsForExecution(transactions);
+
+        AZORIUS.executeProposal(proposalId, targets, values, data, ops);
     }
 
     function _delegateVoters() internal {
@@ -298,11 +313,10 @@ contract ShutterGovernanceBaseForkTest is Test {
         }
     }
 
-    function _voteForProposal(uint32 proposalId) internal {
-        // NO = 0 | YES = 1 | ABSTAIN = 2
+    function _voteOnProposal(uint32 proposalId, address strategy) internal {
         for (uint256 i = 0; i < voters.length; i++) {
             vm.prank(voters[i]);
-            LINEAR_ERC20_VOTING.vote(proposalId, 1);
+            ILinearERC20VotingFork(strategy).vote(proposalId, 1);
         }
     }
 
