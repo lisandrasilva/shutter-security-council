@@ -4,7 +4,7 @@ This repository contains governance-critical smart contract code intended for pr
 
 ## Reporting a Vulnerability
 
-If you find a security issue, do not open a public issue. Report privately to the maintainers and include:
+If you find a security issue, do not open a public issue. Report privately via [GitHub Security Advisories](https://github.com/blockful/shutter-security-council/security/advisories/new) and include:
 
 - Impact and exploit scenario
 - Affected functions/paths

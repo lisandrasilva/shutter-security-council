@@ -124,7 +124,8 @@ contract HatsProposalGatingTest is ShutterGovernanceBaseForkTest {
     // ── Overrides ────────────────────────────────────────────────────────
 
     function _metadata() internal pure override returns (string memory) {
-        return '{"title":"Hats Protocol Proposal Gating","description":"Enable hat-gated proposal creation for Shutter DAO governance"}';
+        return
+        '{"title":"Hats Protocol Proposal Gating","description":"Enable hat-gated proposal creation for Shutter DAO governance"}';
     }
 
     function _prepareTransactions() internal pure override returns (IAzoriusFork.Transaction[] memory) {

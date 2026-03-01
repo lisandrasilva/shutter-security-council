@@ -91,11 +91,12 @@ contract SecurityCouncilAzoriusInvariantTest is StdInvariant, Test {
 
             bool preferVeto = (state & 1) == 1;
             bool isVetoed = guard.vetoedTxHash(txHash);
-            if (preferVeto) {
-                calls[i] = isVetoed
-                    ? abi.encodeCall(SecurityCouncilAzorius.unvetoTx, (txHash))
-                    : abi.encodeCall(SecurityCouncilAzorius.vetoTx, (txHash));
+            if (preferVeto && !isVetoed) {
+                calls[i] = abi.encodeCall(SecurityCouncilAzorius.vetoTx, (txHash));
+            } else if (!preferVeto && isVetoed) {
+                calls[i] = abi.encodeCall(SecurityCouncilAzorius.unvetoTx, (txHash));
             } else {
+                // Toggle to keep the sequence valid (no double-veto / double-unveto)
                 calls[i] = isVetoed
                     ? abi.encodeCall(SecurityCouncilAzorius.unvetoTx, (txHash))
                     : abi.encodeCall(SecurityCouncilAzorius.vetoTx, (txHash));

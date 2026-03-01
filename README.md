@@ -76,13 +76,13 @@ If two proposals include the same tx hash, vetoing either one blocks both execut
 - Reverts with `TransactionVetoed(txHash)` when hash is vetoed
 - `checkAfterExecution(...)` is intentionally a no-op
 
-### 5. Guard placement requirement (Safe 1.3.0)
+### 4. Guard placement requirement (Safe 1.3.0)
 
 - Safe `1.3.0` does not run Safe transaction guards for module execution (`execTransactionFromModule`).
 - Azorius proposal execution uses the module path.
 - Therefore veto enforcement requires setting this contract as Azorius guard (`Azorius.setGuard(address(guard))`).
 
-### 4. Visibility and standards
+### 5. Visibility and standards
 
 - `isProposalVetoed(uint32 proposalId)` returns true only when all proposal hashes are currently vetoed
 - `supportsInterface` returns support for:

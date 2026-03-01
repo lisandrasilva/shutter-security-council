@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.19;
 
-/**
- * Gnosis Safe operation types.
- */
+/// @title Enum - Gnosis Safe operation types.
 library Enum {
     enum Operation {
         Call,
@@ -11,9 +9,7 @@ library Enum {
     }
 }
 
-/**
- * Minimal Guard interface used by Safe/Zodiac.
- */
+/// @title IGuard - Minimal Guard interface used by Safe/Zodiac.
 interface IGuard {
     function checkTransaction(
         address to,
@@ -32,16 +28,12 @@ interface IGuard {
     function checkAfterExecution(bytes32 txHash, bool success) external;
 }
 
-/**
- * Minimal ERC165 interface.
- */
+/// @title IERC165 - Minimal ERC165 interface.
 interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
-/**
- * Minimal Azorius interface used by this contract.
- */
+/// @title IAzorius - Minimal Azorius interface used by this contract.
 interface IAzorius {
     function getProposal(uint32 proposalId)
         external
@@ -60,27 +52,48 @@ interface IAzorius {
         returns (bytes32);
 }
 
-/**
- * SecurityCouncilAzorius
- *
- * Guard contract that blocks execution of vetoed Azorius transactions.
- */
+/// @title SecurityCouncilAzorius
+/// @notice IGuard-compatible veto guard for Azorius proposal transactions.
+/// @dev Veto state is global by txHash, not scoped by proposalId. If two proposals share
+///      a txHash, vetoing either one blocks both execution paths until unvetoed.
+///      Must be installed on the Azorius module via `Azorius.setGuard(address)`, not on the Safe.
 contract SecurityCouncilAzorius is IGuard, IERC165 {
     // --- config ---
+
+    /// @notice Address of the council multisig authorized to veto/unveto.
     address public immutable council;
+
+    /// @notice Address of the Azorius governance module.
     address public immutable azorius;
 
     // --- veto storage ---
+
+    /// @notice Whether a given Azorius txHash is currently vetoed.
     mapping(bytes32 => bool) public vetoedTxHash;
 
     // --- events ---
+
+    /// @notice Emitted when `vetoProposal` is called.
+    /// @param proposalId The Azorius proposal whose txHashes were vetoed.
+    /// @param txCount Number of txHashes that actually transitioned to vetoed.
     event ProposalVetoed(uint32 indexed proposalId, uint256 txCount);
+
+    /// @notice Emitted when `unvetoProposal` is called.
+    /// @param proposalId The Azorius proposal whose txHashes were unvetoed.
+    /// @param txCount Number of txHashes that actually transitioned to unvetoed.
     event ProposalUnvetoed(uint32 indexed proposalId, uint256 txCount);
+
+    /// @notice Emitted when a single txHash transitions from unvetoed to vetoed.
     event TxHashVetoed(bytes32 indexed txHash);
+
+    /// @notice Emitted when a single txHash transitions from vetoed to unvetoed.
     event TxHashUnvetoed(bytes32 indexed txHash);
+
+    /// @notice Emitted once at construction.
     event GuardDeployed(address indexed council, address indexed azorius);
 
     // --- errors ---
+
     error NotCouncil();
     error AlreadyVetoed(bytes32 txHash);
     error NotVetoed(bytes32 txHash);
@@ -93,6 +106,8 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
         _;
     }
 
+    /// @param _council Address authorized to veto/unveto (immutable after deployment).
+    /// @param _azorius Azorius governance module address (immutable after deployment).
     constructor(address _council, address _azorius) {
         if (_council == address(0)) revert ZeroAddressCouncil();
         if (_azorius == address(0)) revert ZeroAddressAzorius();
@@ -107,10 +122,8 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
     // Council operations
     // -------------------------
 
-    /**
-     * Vetoes all txHashes stored on Azorius for `proposalId`.
-     * Idempotent by design.
-     */
+    /// @notice Vetoes all txHashes stored on Azorius for `proposalId`. Idempotent.
+    /// @param proposalId The Azorius proposal to veto.
     function vetoProposal(uint32 proposalId) external onlyCouncil {
         bytes32[] memory txs = _getProposalTxHashes(proposalId);
         uint256 txsLen = txs.length;
@@ -134,10 +147,8 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
         emit ProposalVetoed(proposalId, vetoedCount);
     }
 
-    /**
-     * Clears veto status for all txHashes in `proposalId`.
-     * Idempotent by design.
-     */
+    /// @notice Clears veto status for all txHashes in `proposalId`. Idempotent.
+    /// @param proposalId The Azorius proposal to unveto.
     function unvetoProposal(uint32 proposalId) external onlyCouncil {
         bytes32[] memory txs = _getProposalTxHashes(proposalId);
         uint256 txsLen = txs.length;
@@ -161,24 +172,26 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
         emit ProposalUnvetoed(proposalId, unvetoedCount);
     }
 
-    /**
-     * Fine-grained veto controls.
-     */
+    /// @notice Vetoes a single txHash. Reverts if already vetoed.
+    /// @param txHash The Azorius transaction hash to veto.
     function vetoTx(bytes32 txHash) external onlyCouncil {
         if (vetoedTxHash[txHash]) revert AlreadyVetoed(txHash);
         vetoedTxHash[txHash] = true;
         emit TxHashVetoed(txHash);
     }
 
+    /// @notice Unvetoes a single txHash. Reverts if not currently vetoed.
+    /// @param txHash The Azorius transaction hash to unveto.
     function unvetoTx(bytes32 txHash) external onlyCouncil {
         if (!vetoedTxHash[txHash]) revert NotVetoed(txHash);
         vetoedTxHash[txHash] = false;
         emit TxHashUnvetoed(txHash);
     }
 
-    /**
-     * Batches internal council actions. Reverts atomically if any call fails.
-     */
+    /// @notice Batches internal council actions atomically via delegatecall.
+    /// @dev Reverts with the original error if any subcall fails.
+    /// @param calls ABI-encoded function calls to execute on this contract.
+    /// @return results Return data from each subcall.
     function multicall(bytes[] calldata calls) external onlyCouncil returns (bytes[] memory results) {
         uint256 callsLen = calls.length;
         results = new bytes[](callsLen);
@@ -202,9 +215,8 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
     // Guard interface
     // -------------------------
 
-    /**
-     * Blocks execution if Azorius-computed txHash is vetoed.
-     */
+    /// @notice Blocks execution if the Azorius-computed txHash is vetoed.
+    /// @dev Called by the Azorius module before executing a proposal transaction.
     function checkTransaction(
         address to,
         uint256 value,
@@ -221,9 +233,10 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
         _revertIfVetoed(to, value, data, operation);
     }
 
+    /// @notice No-op. No post-execution validation is needed for veto enforcement.
     function checkAfterExecution(bytes32, bool) external override {}
 
-    // ERC165
+    /// @inheritdoc IERC165
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
         return interfaceId == type(IGuard).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
@@ -232,9 +245,10 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
     // View helpers
     // -------------------------
 
-    /**
-     * Returns true if every tx in the proposal is currently vetoed.
-     */
+    /// @notice Returns true if every txHash in the proposal is currently vetoed.
+    /// @dev Returns false for proposals with zero txHashes.
+    /// @param proposalId The Azorius proposal to check.
+    /// @return True if all txHashes are vetoed.
     function isProposalVetoed(uint32 proposalId) external view returns (bool) {
         bytes32[] memory txs = _getProposalTxHashes(proposalId);
         uint256 txsLen = txs.length;
