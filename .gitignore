@@ -4,3 +4,4 @@ out/
 broadcast/
 coverage/
 *.log
+.DS_Store
