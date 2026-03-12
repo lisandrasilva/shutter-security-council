@@ -6,12 +6,13 @@ pragma solidity ^0.8.19;
  * @notice Fork test for the SpamProposal library.
  *
  * Tests:
- *   1. 1000 spam proposals can be submitted before the threshold change.
+ *   1. 1000 spam proposals can be batched via Multicall3 in a single tx.
  *   2. After GovernanceParametersProposal raises the threshold to 100K SHU,
  *      a low-weight address is blocked from submitting.
  */
-import {ShutterGovernanceBaseForkTest} from "./ShutterGovernance.base.t.sol";
+import {ShutterGovernanceBaseForkTest, IVotesFork} from "./ShutterGovernance.base.t.sol";
 import {IAzorius as IAzoriusFork} from "src/interfaces/IAzorius.sol";
+import {IMulticall3} from "forge-std/interfaces/IMulticall3.sol";
 import {GovernanceParametersProposal} from "src/proposals/GovernanceParametersProposal.sol";
 import {SpamProposal} from "src/proposals/SpamProposal.sol";
 import {MockTarget} from "test/mocks/MockTarget.sol";
@@ -34,17 +35,20 @@ contract SpamProposalTest is ShutterGovernanceBaseForkTest {
         return SpamProposal.metadata();
     }
 
-    function test_thousandProposalsCanBeSubmitted() public {
+    function test_thousandProposalsBatchedViaMulticall3() public {
         uint256 count = 1_000;
         uint32 firstProposalId = AZORIUS.totalProposalCount();
 
-        for (uint256 i = 0; i < count; i++) {
-            IAzoriusFork.Transaction[] memory txs =
-                SpamProposal.buildProposalTransactions(address(target), abi.encodeCall(MockTarget.setNumber, (i)));
+        // Multicall3 becomes msg.sender for Azorius, so it needs proposer weight.
+        // Give a fresh address exactly 1 SHU (the current minimum) and delegate to Multicall3.
+        address spammer = address(0xBAD);
+        deal(SHUTTER_TOKEN, spammer, 1e18);
+        vm.prank(spammer);
+        IVotesFork(SHUTTER_TOKEN).delegate(SpamProposal.MULTICALL3);
+        vm.roll(block.number + 1);
 
-            vm.prank(proposer);
-            AZORIUS.submitProposal(address(LINEAR_ERC20_VOTING), hex"", txs, _metadata());
-        }
+        IMulticall3.Call3[] memory calls = SpamProposal.buildBatchCall(address(target), count);
+        IMulticall3(SpamProposal.MULTICALL3).aggregate3(calls);
 
         assertEq(AZORIUS.totalProposalCount() - firstProposalId, count, "Expected 1000 proposals submitted");
     }

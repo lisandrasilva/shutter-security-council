@@ -2,24 +2,20 @@
 pragma solidity ^0.8.19;
 
 import {Script} from "forge-std/Script.sol";
-import {IAzorius} from "src/interfaces/IAzorius.sol";
-import {GovernanceProposal} from "src/proposals/GovernanceProposal.sol";
+import {IMulticall3} from "forge-std/interfaces/IMulticall3.sol";
 import {SpamProposal} from "src/proposals/SpamProposal.sol";
 
-/// @notice Submits N spam proposals in a loop for stress testing.
-///         Does NOT extend SubmitProposal because it submits multiple proposals.
+/// @notice Submits N spam proposals batched via Multicall3 in a single transaction.
 contract SubmitSpamProposalScript is Script {
     function run() external {
         uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
         uint256 count = vm.envOr("SPAM_COUNT", uint256(100));
         address target = vm.envAddress("SPAM_TARGET");
 
+        IMulticall3.Call3[] memory calls = SpamProposal.buildBatchCall(target, count);
+
         vm.startBroadcast(pk);
-        for (uint256 i = 0; i < count; i++) {
-            (address strategy, IAzorius.Transaction[] memory txs, string memory metadata) =
-                SpamProposal.buildProposal(target, abi.encodeWithSignature("setNumber(uint256)", i));
-            IAzorius(GovernanceProposal.AZORIUS()).submitProposal(strategy, hex"", txs, metadata);
-        }
+        IMulticall3(SpamProposal.MULTICALL3).aggregate3(calls);
         vm.stopBroadcast();
     }
 }
