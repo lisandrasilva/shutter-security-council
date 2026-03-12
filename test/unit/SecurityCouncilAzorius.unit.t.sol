@@ -28,7 +28,7 @@ contract SecurityCouncilAzoriusUnitTest is Test {
     }
 
     function test_constructor_revertsForZeroCouncil() public {
-        vm.expectRevert(SecurityCouncilAzorius.ZeroAddressCouncil.selector);
+        vm.expectRevert(abi.encodeWithSignature("OwnableInvalidOwner(address)", address(0)));
         new SecurityCouncilAzorius(address(0), address(mockAzorius));
     }
 
@@ -42,11 +42,20 @@ contract SecurityCouncilAzoriusUnitTest is Test {
         SecurityCouncilAzorius deployed = new SecurityCouncilAzorius(council, address(mockAzorius));
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        assertGt(logs.length, 0);
-        assertEq(logs[0].topics[0], keccak256("GuardDeployed(address,address)"));
-        assertEq(address(uint160(uint256(logs[0].topics[1]))), council);
-        assertEq(address(uint160(uint256(logs[0].topics[2]))), address(mockAzorius));
-        assertEq(deployed.council(), council);
+        bytes32 guardDeployedTopic = keccak256("GuardDeployed(address,address)");
+        bool found;
+
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics.length > 0 && logs[i].topics[0] == guardDeployedTopic) {
+                found = true;
+                assertEq(address(uint160(uint256(logs[i].topics[1]))), council);
+                assertEq(address(uint160(uint256(logs[i].topics[2]))), address(mockAzorius));
+                break;
+            }
+        }
+
+        assertTrue(found);
+        assertEq(deployed.owner(), council);
         assertEq(deployed.azorius(), address(mockAzorius));
     }
 
@@ -163,6 +172,42 @@ contract SecurityCouncilAzoriusUnitTest is Test {
         guard.unvetoTx(txHash);
     }
 
+    function test_transferOwnership_preservesExistingVetoState() public {
+        bytes32 txHash = _hashFor(123);
+        bytes32 nextTxHash = _hashFor(456);
+        address newCouncil = makeAddr("newCouncil");
+
+        vm.prank(council);
+        guard.vetoTx(txHash);
+
+        vm.prank(council);
+        (bool transferOk,) = address(guard).call(abi.encodeWithSignature("transferOwnership(address)", newCouncil));
+        assertTrue(transferOk, "transferOwnership should succeed");
+
+        (bool ownerOk, bytes memory ownerData) = address(guard).staticcall(abi.encodeWithSignature("owner()"));
+        assertTrue(ownerOk, "owner() should exist");
+        assertEq(abi.decode(ownerData, (address)), newCouncil);
+
+        assertTrue(guard.vetoedTxHash(txHash));
+
+        vm.prank(council);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", council));
+        guard.vetoTx(nextTxHash);
+
+        vm.prank(newCouncil);
+        guard.unvetoTx(txHash);
+
+        assertFalse(guard.vetoedTxHash(txHash));
+    }
+
+    function test_renounceOwnership_disabled() public {
+        vm.prank(council);
+        vm.expectRevert(SecurityCouncilAzorius.RenounceOwnershipDisabled.selector);
+        guard.renounceOwnership();
+
+        assertEq(guard.owner(), council);
+    }
+
     function test_multicall_batchesCouncilOperations() public {
         bytes32 h1 = _hashFor(1);
         bytes32 h2 = _hashFor(2);
@@ -234,24 +279,24 @@ contract SecurityCouncilAzoriusUnitTest is Test {
         assertFalse(guard.supportsInterface(bytes4(0xffffffff)));
     }
 
-    function test_onlyCouncilCanCallStateChangingFunctions() public {
+    function test_onlyOwnerCanCallStateChangingFunctions() public {
         bytes[] memory calls = new bytes[](0);
         bytes32 txHash = _hashFor(555);
 
         vm.startPrank(attacker);
-        vm.expectRevert(SecurityCouncilAzorius.NotCouncil.selector);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", attacker));
         guard.vetoProposal(PROPOSAL_ID);
 
-        vm.expectRevert(SecurityCouncilAzorius.NotCouncil.selector);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", attacker));
         guard.unvetoProposal(PROPOSAL_ID);
 
-        vm.expectRevert(SecurityCouncilAzorius.NotCouncil.selector);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", attacker));
         guard.vetoTx(txHash);
 
-        vm.expectRevert(SecurityCouncilAzorius.NotCouncil.selector);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", attacker));
         guard.unvetoTx(txHash);
 
-        vm.expectRevert(SecurityCouncilAzorius.NotCouncil.selector);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", attacker));
         guard.multicall(calls);
         vm.stopPrank();
     }
@@ -266,10 +311,10 @@ contract SecurityCouncilAzoriusUnitTest is Test {
         assertFalse(guard.vetoedTxHash(txHash));
     }
 
-    function testFuzz_nonCouncilCannotVeto(address actor, bytes32 txHash) public {
+    function testFuzz_nonOwnerCannotVeto(address actor, bytes32 txHash) public {
         vm.assume(actor != council);
         vm.prank(actor);
-        vm.expectRevert(SecurityCouncilAzorius.NotCouncil.selector);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", actor));
         guard.vetoTx(txHash);
     }
 

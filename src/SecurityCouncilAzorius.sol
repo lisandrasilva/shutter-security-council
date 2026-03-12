@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.19;
 
+import {Ownable} from "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+
 /// @title Enum - Gnosis Safe operation types.
 library Enum {
     enum Operation {
@@ -59,11 +61,8 @@ interface IAzorius {
 /// @dev Veto state is global by txHash, not scoped by proposalId. If two proposals share
 ///      a txHash, vetoing either one blocks both execution paths until unvetoed.
 ///      Must be installed on the Azorius module via `Azorius.setGuard(address)`, not on the Safe.
-contract SecurityCouncilAzorius is IGuard, IERC165 {
+contract SecurityCouncilAzorius is IGuard, IERC165, Ownable {
     // --- config ---
-
-    /// @notice Address of the council multisig authorized to veto/unveto.
-    address public immutable council;
 
     /// @notice Address of the Azorius governance module.
     address public immutable azorius;
@@ -96,25 +95,17 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
 
     // --- errors ---
 
-    error NotCouncil();
     error AlreadyVetoed(bytes32 txHash);
     error NotVetoed(bytes32 txHash);
     error TransactionVetoed(bytes32 txHash);
-    error ZeroAddressCouncil();
     error ZeroAddressAzorius();
+    error RenounceOwnershipDisabled();
 
-    modifier onlyCouncil() {
-        if (msg.sender != council) revert NotCouncil();
-        _;
-    }
-
-    /// @param _council Address authorized to veto/unveto (immutable after deployment).
+    /// @param _council Address authorized to veto/unveto via `owner()`.
     /// @param _azorius Azorius governance module address (immutable after deployment).
-    constructor(address _council, address _azorius) {
-        if (_council == address(0)) revert ZeroAddressCouncil();
+    constructor(address _council, address _azorius) Ownable(_council) {
         if (_azorius == address(0)) revert ZeroAddressAzorius();
 
-        council = _council;
         azorius = _azorius;
 
         emit GuardDeployed(_council, _azorius);
@@ -126,7 +117,7 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
 
     /// @notice Vetoes all txHashes stored on Azorius for `proposalId`. Idempotent.
     /// @param proposalId The Azorius proposal to veto.
-    function vetoProposal(uint32 proposalId) external onlyCouncil {
+    function vetoProposal(uint32 proposalId) external onlyOwner {
         bytes32[] memory txs = _getProposalTxHashes(proposalId);
         uint256 txsLen = txs.length;
         uint256 vetoedCount;
@@ -151,7 +142,7 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
 
     /// @notice Clears veto status for all txHashes in `proposalId`. Idempotent.
     /// @param proposalId The Azorius proposal to unveto.
-    function unvetoProposal(uint32 proposalId) external onlyCouncil {
+    function unvetoProposal(uint32 proposalId) external onlyOwner {
         bytes32[] memory txs = _getProposalTxHashes(proposalId);
         uint256 txsLen = txs.length;
         uint256 unvetoedCount;
@@ -176,7 +167,7 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
 
     /// @notice Vetoes a single txHash. Reverts if already vetoed.
     /// @param txHash The Azorius transaction hash to veto.
-    function vetoTx(bytes32 txHash) external onlyCouncil {
+    function vetoTx(bytes32 txHash) external onlyOwner {
         if (vetoedTxHash[txHash]) revert AlreadyVetoed(txHash);
         vetoedTxHash[txHash] = true;
         emit TxHashVetoed(txHash);
@@ -184,7 +175,7 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
 
     /// @notice Unvetoes a single txHash. Reverts if not currently vetoed.
     /// @param txHash The Azorius transaction hash to unveto.
-    function unvetoTx(bytes32 txHash) external onlyCouncil {
+    function unvetoTx(bytes32 txHash) external onlyOwner {
         if (!vetoedTxHash[txHash]) revert NotVetoed(txHash);
         vetoedTxHash[txHash] = false;
         emit TxHashUnvetoed(txHash);
@@ -194,7 +185,7 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
     /// @dev Reverts with the original error if any subcall fails.
     /// @param calls ABI-encoded function calls to execute on this contract.
     /// @return results Return data from each subcall.
-    function multicall(bytes[] calldata calls) external onlyCouncil returns (bytes[] memory results) {
+    function multicall(bytes[] calldata calls) external onlyOwner returns (bytes[] memory results) {
         uint256 callsLen = calls.length;
         results = new bytes[](callsLen);
 
@@ -211,6 +202,11 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
                 ++i;
             }
         }
+    }
+
+    /// @notice Disabled to avoid leaving the guard without a council owner.
+    function renounceOwnership() public view override onlyOwner {
+        revert RenounceOwnershipDisabled();
     }
 
     // -------------------------
