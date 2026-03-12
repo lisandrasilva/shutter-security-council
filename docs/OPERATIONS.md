@@ -20,24 +20,33 @@ Required operator checks before veto/unveto:
 
 ## Council Rotation Procedure
 
-`council` is immutable. Rotation requires guard replacement.
+`SecurityCouncilAzorius` now uses OpenZeppelin `Ownable`.
+
+Operational implication:
+
+- The active council address is `owner()`.
+- Council rotation does not require guard replacement.
+- Existing `vetoedTxHash` state remains in place across `transferOwnership(newCouncil)`.
+- `renounceOwnership()` is disabled, so the guard cannot be left without a council owner.
 
 Recommended procedure:
 
-1. Deploy a new `SecurityCouncilAzorius` with:
-   - `COUNCIL_ADDRESS = new council`
-   - `AZORIUS_ADDRESS = same production Azorius`
-2. Verify source and constructor args.
-3. Rehearse on a fork:
-   - set new guard via `Azorius.setGuard(newGuard)`
-   - execute a known non-vetoed tx (should pass)
-   - veto/unveto a known tx hash (should block then restore)
-4. Execute governance/safe transaction to switch guard on production Azorius.
-5. Post-activation checks:
-   - `supportsInterface` and key reads on new guard
-   - `Azorius.guard() == newGuard`
-   - one live no-op or harmless execution path through guard
-6. Keep the old guard address documented for incident response and historic lookups.
+1. Confirm the current guard is the intended production guard:
+   - `Azorius.guard() == currentGuard`
+   - `SecurityCouncilAzorius(currentGuard).owner() == current council`
+2. Rehearse on a fork:
+   - call `transferOwnership(newCouncil)` from the current owner
+   - confirm `owner() == newCouncil`
+   - confirm a previously vetoed tx hash is still vetoed after the transfer
+   - confirm the old council can no longer call veto functions
+   - confirm the new council can veto/unveto successfully
+3. Execute the ownership transfer on production from the current council owner.
+4. Post-rotation checks:
+   - `SecurityCouncilAzorius(currentGuard).owner() == newCouncil`
+   - `Azorius.guard()` is unchanged
+   - one known vetoed tx hash is still blocked
+   - one harmless owner-only action path is callable by the new council
+5. Record the transfer transaction hash and the new owner address in incident/governance logs.
 
 ## Guard Placement (Safe 1.3.0)
 
