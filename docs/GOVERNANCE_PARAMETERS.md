@@ -8,7 +8,7 @@ Current on-chain parameters for Shutter DAO governance as of block `24,493,552` 
 
 | Parameter | Current Value | Suggested Value | Setter | Description |
 | --- | --- | --- | --- | --- |
-| `timelockPeriod` | `0` (no delay) | **`259,200` (3 days)** | `updateTimelockPeriod(uint32)` | Seconds between proposal passing and becoming executable |
+| `timelockPeriod` | `0` (no delay) | **`21,600` blocks (~3 days)** | `updateTimelockPeriod(uint32)` | Blocks between proposal passing and becoming executable |
 | `executionPeriod` | `21,600` blocks (~3 days) | **`50,400` blocks (~7 days)** | `updateExecutionPeriod(uint32)` | Window in which a passed proposal can be executed |
 | `guard` | `address(0)` (none) | **SecurityCouncilAzorius** | `setGuard(address)` | Transaction guard checked before each execution |
 | `owner` | Shutter Safe | -- | -- | Only the Safe (via governance) can change these |
@@ -76,7 +76,7 @@ The 3-day timelock gives the council a full window to review passed proposals an
 
 ## Security Analysis of Suggested Changes
 
-### timelockPeriod: `0` -> `259,200` (3 days)
+### timelockPeriod: `0` -> `21,600` blocks (~3 days)
 
 **Critical.** Without a timelock, the guard is useless — there is no window for the council to veto.
 
@@ -127,7 +127,7 @@ These parameters are independent of the guard's effectiveness. The guard operate
 
 The governance proposal that installs the guard should bundle these transactions in order:
 
-1. `Azorius.updateTimelockPeriod(259200)` -- introduce a 3-day timelock.
+1. `Azorius.updateTimelockPeriod(21600)` -- introduce a 3-day timelock.
 2. `Azorius.updateExecutionPeriod(50400)` -- extend execution window to 7 days.
 3. `LinearERC20Voting.updateRequiredProposerWeight(100000000000000000000000)` -- raise proposer threshold to 100K SHU.
 4. `Azorius.setGuard(guardAddress)` -- install the security council guard.
@@ -136,7 +136,7 @@ Order matters: set the timelock and parameters first, then install the guard. Th
 
 ## Notes
 
-- **timelockPeriod is in seconds**, not blocks. It uses `block.timestamp` comparison.
+- **timelockPeriod is in blocks**, not seconds. Azorius compares it against `block.number`.
 - **executionPeriod is in blocks**, not seconds. It uses `block.number` comparison.
 - The timelock starts counting after the voting period ends and the proposal is marked as passed.
 - The council address is immutable in `SecurityCouncilAzorius`. If the council needs to rotate, a new guard must be deployed and installed via a new governance proposal.
