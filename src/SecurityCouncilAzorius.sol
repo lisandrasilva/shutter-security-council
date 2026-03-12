@@ -46,6 +46,8 @@ interface IAzorius {
             uint32 executionCounter
         );
 
+    function getProposalTxHashes(uint32 proposalId) external view returns (bytes32[] memory txHashes);
+
     function getTxHash(address to, uint256 value, bytes memory data, Enum.Operation operation)
         external
         view
@@ -268,7 +270,7 @@ contract SecurityCouncilAzorius is IGuard, IERC165 {
     // -------------------------
 
     function _getProposalTxHashes(uint32 proposalId) internal view returns (bytes32[] memory txHashes) {
-        (, txHashes,,,) = IAzorius(azorius).getProposal(proposalId);
+        txHashes = IAzorius(azorius).getProposalTxHashes(proposalId);
     }
 
     function _revertIfVetoed(address to, uint256 value, bytes calldata data, Enum.Operation operation) internal view {

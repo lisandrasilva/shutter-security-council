@@ -64,6 +64,18 @@ contract MockAzorius is IAzorius {
             (proposal.strategy, txHashes, proposal.timelockPeriod, proposal.executionPeriod, proposal.executionCounter);
     }
 
+    function getProposalTxHashes(uint32 proposalId) external view override returns (bytes32[] memory txHashes) {
+        Proposal storage proposal = proposals[proposalId];
+        uint256 txsLen = proposal.txHashes.length;
+        txHashes = new bytes32[](txsLen);
+        for (uint256 i = 0; i < txsLen;) {
+            txHashes[i] = proposal.txHashes[i];
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     function getTxHash(address to, uint256 value, bytes memory data, Enum.Operation operation)
         external
         pure
