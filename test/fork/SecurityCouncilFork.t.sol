@@ -10,10 +10,10 @@ pragma solidity ^0.8.19;
  *   1. Governance proposal installs the guard on Azorius via setGuard.
  *   2. A second proposal is submitted -- the council can veto/unveto it.
  *
- * Covers: veto, unveto, isProposalVetoed, multicall,
- *         Safe guard edge case, tampered payload rejection.
+ * Covers: veto, unveto, isProposalVetoed, multicall.
  */
-import {ShutterGovernanceBaseForkTest, IAzoriusFork, ISafeLike} from "./ShutterGovernance.base.t.sol";
+import {ShutterGovernanceBaseForkTest, ISafeLike} from "./ShutterGovernance.base.t.sol";
+import {IAzorius as IAzoriusFork} from "src/interfaces/IAzorius.sol";
 import {SecurityCouncilAzorius} from "src/SecurityCouncilAzorius.sol";
 import {MockTarget} from "test/mocks/MockTarget.sol";
 
@@ -41,16 +41,6 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
 
     function _prepareTransactions() internal view override returns (IAzoriusFork.Transaction[] memory txs) {} // Not used — each flow has its own transaction builder.
 
-    function _guardInstallTransactions() internal view returns (IAzoriusFork.Transaction[] memory txs) {
-        txs = new IAzoriusFork.Transaction[](1);
-        txs[0] = IAzoriusFork.Transaction({
-            to: address(AZORIUS),
-            value: 0,
-            data: abi.encodeWithSignature("setGuard(address)", address(guard)),
-            operation: IAzoriusFork.Operation.Call
-        });
-    }
-
     function _targetTransactions() internal view returns (IAzoriusFork.Transaction[] memory txs) {
         return _targetTransactionsWithNumber(INTEGRATION_NUMBER);
     }
@@ -72,6 +62,16 @@ contract SecurityCouncilForkTest is ShutterGovernanceBaseForkTest {
     /*//////////////////////////////////////////////////////////////////////////
                                    HELPERS
     //////////////////////////////////////////////////////////////////////////*/
+
+    function _guardInstallTransactions() internal view returns (IAzoriusFork.Transaction[] memory txs) {
+        txs = new IAzoriusFork.Transaction[](1);
+        txs[0] = IAzoriusFork.Transaction({
+            to: address(AZORIUS),
+            value: 0,
+            data: abi.encodeWithSignature("setGuard(address)", address(guard)),
+            operation: IAzoriusFork.Operation.Call
+        });
+    }
 
     function _submitPassAndExecuteGuardProposal() internal {
         _submitPassAndExecuteProposal(proposer, address(LINEAR_ERC20_VOTING), _guardInstallTransactions());

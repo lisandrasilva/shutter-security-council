@@ -8,7 +8,7 @@ Current on-chain parameters for Shutter DAO governance as of block `24,493,552` 
 
 | Parameter | Current Value | Suggested Value | Setter | Description |
 | --- | --- | --- | --- | --- |
-| `timelockPeriod` | `0` (no delay) | **`21,600` blocks (~3 days)** | `updateTimelockPeriod(uint32)` | Blocks between proposal passing and becoming executable |
+| `timelockPeriod` | `0` (no delay) | **`14,400` blocks (~2 days)** | `updateTimelockPeriod(uint32)` | Blocks between proposal passing and becoming executable |
 | `executionPeriod` | `21,600` blocks (~3 days) | **`50,400` blocks (~7 days)** | `updateExecutionPeriod(uint32)` | Window in which a passed proposal can be executed |
 | `guard` | `address(0)` (none) | **SecurityCouncilAzorius** | `setGuard(address)` | Transaction guard checked before each execution |
 | `owner` | Shutter Safe | -- | -- | Only the Safe (via governance) can change these |
@@ -57,35 +57,35 @@ A passed proposal can be executed the instant voting ends. The council has **zer
 
 ```mermaid
 gantt
-    title Suggested Governance Timeline (guard + 3-day timelock)
+    title Suggested Governance Timeline (guard + 2-day timelock)
     dateFormat YYYY-MM-DD
     axisFormat %d %b
 
     section Proposal Lifecycle
     Voting Period (3 days)           :vote, 2025-01-01, 3d
-    Timelock (3 days)                :timelock, after vote, 3d
+    Timelock (2 days)                :timelock, after vote, 2d
     Execution Window (7 days)        :exec, after timelock, 7d
 
     section Council
-    Veto Window (3 days)             :crit, veto, after vote, 3du
+    Veto Window (2 days)             :crit, veto, after vote, 2du
 ```
 
-**Total: 6 days submit-to-executable, 13 days submit-to-expiry.**
+**Total: 5 days submit-to-executable, 12 days submit-to-expiry.**
 
-The 3-day timelock gives the council a full window to review passed proposals and veto if needed. The 7-day execution window gives legitimate proposers ample time to trigger execution without risk of expiry. The 100K SHU proposer threshold eliminates spam while still being accessible (0.01% of supply).
+The 2-day timelock gives the council a window to review passed proposals and veto if needed. The 7-day execution window gives legitimate proposers ample time to trigger execution without risk of expiry. The 100K SHU proposer threshold eliminates spam while still being accessible (0.01% of supply).
 
 ## Security Analysis of Suggested Changes
 
-### timelockPeriod: `0` -> `21,600` blocks (~3 days)
+### timelockPeriod: `0` -> `14,400` blocks (~2 days)
 
 **Critical.** Without a timelock, the guard is useless — there is no window for the council to veto.
 
-Why 3 days:
+Why 2 days:
 
-- **Matches the voting period.** The council gets as much time to review a passed proposal as voters had to vote on it.
-- **Covers weekends.** A proposal that passes on a Friday evening can still be reviewed by Monday. A 1-day or 2-day timelock would not cover this.
-- **Multisig coordination.** If the council is a Safe multisig, signers need time to come online, review the proposal, discuss, and collect enough signatures to veto. 3 days is a reasonable minimum for this.
-- **Precedent.** Compound, Optimism, and other major DAOs use 2-7 day timelocks. 3 days is within the standard range.
+- **Sufficient for review.** The council gets 2 full days to review a passed proposal before it becomes executable.
+- **Multisig coordination.** If the council is a Safe multisig, signers need time to come online, review the proposal, discuss, and collect enough signatures to veto. 2 days is a practical minimum for this.
+- **Precedent.** Compound, Optimism, and other major DAOs use 2-7 day timelocks. 2 days is within the standard range.
+- **Faster governance.** A shorter timelock means legitimate proposals execute sooner, reducing the total governance lifecycle.
 
 Attack scenario without timelock:
 
@@ -93,16 +93,16 @@ Attack scenario without timelock:
 2. Submits a malicious proposal and votes it through in 3 days.
 3. Executes immediately after voting ends. Council cannot react.
 
-With 3-day timelock: the council has 3 full days between the vote passing and the proposal becoming executable. This is enough to detect, review, and veto.
+With 2-day timelock: the council has 2 full days between the vote passing and the proposal becoming executable. This is enough to detect, review, and veto.
 
 ### executionPeriod: `21,600` -> `50,400` blocks (~3 days -> ~7 days)
 
-**Important.** With the new timelock adding 3 days before execution, the total lifecycle grows from 6 days to 13 days. The execution window needs to be forgiving enough so that legitimate proposals don't expire because the executor missed a tight window.
+**Important.** With the new timelock adding 2 days before execution, the total lifecycle grows from 6 days to 12 days. The execution window needs to be forgiving enough so that legitimate proposals don't expire because the executor missed a tight window.
 
 Why 7 days:
 
 - **Weekends and holidays.** A 3-day execution window that starts on a Thursday evening expires on Sunday. Proposers and multisig executors shouldn't lose their passed proposal because of a weekend.
-- **Operational safety.** If the executor has operational issues (key rotation, hardware failure, travel), 7 days is a reasonable buffer. A proposal that went through 3 days of voting + 3 days of timelock should not die because execution was delayed by 72 hours.
+- **Operational safety.** If the executor has operational issues (key rotation, hardware failure, travel), 7 days is a reasonable buffer. A proposal that went through 3 days of voting + 2 days of timelock should not die because execution was delayed by 72 hours.
 - **No security downside.** A longer execution window does not weaken security. The council already vetoed or allowed the proposal during the timelock. The execution window is just an operational convenience.
 
 ### requiredProposerWeight: `1 SHU` -> `100,000 SHU` (100K)
@@ -123,16 +123,23 @@ Why 100K SHU (0.01% of supply):
 
 These parameters are independent of the guard's effectiveness. The guard operates in the timelock window, not during voting. The current values (3-day vote, 3% quorum, 50% basis) are standard for token-weighted governance.
 
-## Guard Installation Proposal Transactions
+## Proposal Transactions
 
-The governance proposal that installs the guard should bundle these transactions in order:
+The changes are split into two separate proposals so each can be voted on independently.
 
-1. `Azorius.updateTimelockPeriod(21600)` -- introduce a 3-day timelock.
-2. `Azorius.updateExecutionPeriod(50400)` -- extend execution window to 7 days.
-3. `LinearERC20Voting.updateRequiredProposerWeight(100000000000000000000000)` -- raise proposer threshold to 100K SHU.
-4. `Azorius.setGuard(guardAddress)` -- install the security council guard.
+### Proposal A: Guard Installation
 
-Order matters: set the timelock and parameters first, then install the guard. This ensures the guard is never active without a proper timelock window. All four transactions execute atomically as part of the same proposal.
+1. `Azorius.updateTimelockPeriod(14400)` -- introduce a 2-day timelock.
+2. `Azorius.setGuard(guardAddress)` -- install the security council guard.
+
+Order matters: set the timelock first, then install the guard. This ensures the guard is never active without a proper timelock window. Both transactions execute atomically.
+
+### Proposal B: Governance Parameters Hardening
+
+1. `Azorius.updateExecutionPeriod(50400)` -- extend execution window to 7 days.
+2. `LinearERC20Voting.updateRequiredProposerWeight(100000000000000000000000)` -- raise proposer threshold to 100K SHU.
+
+These parameter changes are independent of the guard and can be submitted as a follow-up proposal.
 
 ## Notes
 
@@ -141,4 +148,4 @@ Order matters: set the timelock and parameters first, then install the guard. Th
 - The timelock starts counting after the voting period ends and the proposal is marked as passed.
 - The council address is immutable in `SecurityCouncilAzorius`. If the council needs to rotate, a new guard must be deployed and installed via a new governance proposal.
 - Changing the timelock later requires another governance proposal calling `updateTimelockPeriod`. The council cannot change it unilaterally.
-- The guard and parameter changes should be installed atomically in the same proposal. If only the guard is installed without a timelock, the council has no reaction window and the guard is ineffective.
+- The guard and timelock must be installed atomically in the same proposal. If only the guard is installed without a timelock, the council has no reaction window and the guard is ineffective.
