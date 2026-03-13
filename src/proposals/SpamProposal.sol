@@ -20,7 +20,7 @@ library SpamProposal {
     }
 
     function metadata() internal pure returns (string memory) {
-        return '{"title":"Spam Proposal","description":"Trivial proposal for stress testing"}';
+        return '{"title":"This could have been an attack","description":"DISCOURSE LINK"}';
     }
 
     function buildProposal(address target, bytes memory data)
@@ -34,7 +34,7 @@ library SpamProposal {
     }
 
     /// @notice Builds an aggregate3 call to Multicall3 that submits `count` proposals in one tx.
-    function buildBatchCall(address target, uint256 count) internal pure returns (IMulticall3.Call3[] memory calls) {
+    function buildBatchCall(uint256 count) internal pure returns (IMulticall3.Call3[] memory calls) {
         calls = new IMulticall3.Call3[](count);
         address azorius = GovernanceProposal.AZORIUS();
         address strategy = GovernanceProposal.LINEAR_ERC20_VOTING();
@@ -42,7 +42,7 @@ library SpamProposal {
 
         for (uint256 i = 0; i < count; i++) {
             IAzorius.Transaction[] memory txs =
-                buildProposalTransactions(target, abi.encodeWithSignature("setNumber(uint256)", i));
+                buildProposalTransactions(address(0), hex"");
 
             calls[i] = IMulticall3.Call3({
                 target: azorius,

@@ -9,9 +9,8 @@ import {SpamProposal} from "src/proposals/SpamProposal.sol";
 contract SubmitSpamProposalScript is Script {
     function run() external {
         uint256 count = vm.envOr("SPAM_COUNT", uint256(100));
-        address target = vm.envAddress("SPAM_TARGET");
 
-        IMulticall3.Call3[] memory calls = SpamProposal.buildBatchCall(target, count);
+        IMulticall3.Call3[] memory calls = SpamProposal.buildBatchCall(count);
 
         uint256 pk = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
         if (pk != 0) {

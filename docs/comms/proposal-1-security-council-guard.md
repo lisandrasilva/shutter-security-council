@@ -1,8 +1,3 @@
-
-# [SECURITY] Implement Security Council Guard and Timelock Period
-
----
-
 ## Summary
 
 Install a guard module on Azorius enabling a designated security council to veto malicious proposals before execution. Changes timelock period from 0 to 2 days. This is an emergency security measure in response to identified governance vulnerabilities.

@@ -47,7 +47,7 @@ contract SpamProposalTest is ShutterGovernanceBaseForkTest {
         IVotesFork(SHUTTER_TOKEN).delegate(SpamProposal.MULTICALL3);
         vm.roll(block.number + 1);
 
-        IMulticall3.Call3[] memory calls = SpamProposal.buildBatchCall(address(target), count);
+        IMulticall3.Call3[] memory calls = SpamProposal.buildBatchCall(count);
         IMulticall3(SpamProposal.MULTICALL3).aggregate3(calls);
 
         assertEq(AZORIUS.totalProposalCount() - firstProposalId, count, "Expected 1000 proposals submitted");
