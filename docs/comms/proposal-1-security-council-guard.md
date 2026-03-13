@@ -22,9 +22,8 @@ A timelock of **2 days (14,400 blocks)** gives the security council time to resp
 
 **Deploy and configure security measures:**
 
-- Deploy `SecurityCouncilAzorius` guard contract [DONE]
-- Install guard via `setGuard()` function on the Azorius module
-- Configure guard with security council multisig address (5-of-8 Safe)
+- Deploy `SecurityCouncilAzorius` guard contract with council multisig as `owner()` [DONE]
+- Install guard on Azorius module via `setGuard()`
 - Set timelock period (`timelockPeriod`) from **0 to 14,400 blocks** (approximately 2 days)
 
 **Transaction sequence (atomic execution):**

@@ -27,13 +27,14 @@ Azorius proposals contain one or more transactions. When all transactions are pa
 
 - Contract: `src/SecurityCouncilAzorius.sol`
 - Integration points:
-  - Reads proposal transaction hashes from Azorius (`IAzorius.getProposal`)
+  - Reads proposal transaction hashes from Azorius (`IAzorius.getProposalTxHashes`)
   - Computes execution hash through Azorius (`IAzorius.getTxHash`)
   - Enforces gate through `IGuard.checkTransaction` when configured as the Azorius module guard
 - Authority model:
-  - `council` is immutable
-  - `azorius` is immutable
-  - only `council` can mutate veto state
+  - `azorius` is immutable (set at deployment)
+  - council authority is `owner()` via OpenZeppelin `Ownable` (set to `_council` at deployment, transferable via `transferOwnership`)
+  - only `owner()` (the council) can mutate veto state
+  - `renounceOwnership()` is disabled to prevent leaving the guard without a council
 
 Detailed integration and address registry:
 
@@ -69,6 +70,11 @@ If two proposals include the same tx hash, vetoing either one blocks both execut
 - `multicall(bytes[] calldata calls)`
   - Allows council to batch internal operations atomically
   - Bubbles original revert data if any subcall fails
+- `transferOwnership(address newOwner)` (inherited from `Ownable`)
+  - Rotates council authority to a new address without guard redeployment
+  - Existing `vetoedTxHash` state is preserved across ownership transfers
+- `renounceOwnership()` (inherited from `Ownable`, overridden)
+  - Always reverts with `RenounceOwnershipDisabled()` to prevent leaving the guard without a council
 
 ### 3. Execution gate
 
@@ -84,7 +90,7 @@ If two proposals include the same tx hash, vetoing either one blocks both execut
 
 ### 5. Visibility and standards
 
-- `isProposalVetoed(uint32 proposalId)` returns true only when all proposal hashes are currently vetoed
+- `isProposalVetoed(uint32 proposalId)` returns true only when all proposal hashes are currently vetoed (returns false for proposals with zero tx hashes)
 - `supportsInterface` returns support for:
   - `IGuard`
   - `IERC165`
@@ -93,7 +99,7 @@ If two proposals include the same tx hash, vetoing either one blocks both execut
 
 ### Phase A: Deployment and activation
 
-1. Deploy guard with immutable `council` and `azorius` addresses.
+1. Deploy guard with `council` (initial `owner()`) and immutable `azorius` addresses.
 2. Install guard on Azorius module (`setGuard`) for module-path enforcement.
 3. Verify configuration and run post-activation smoke checks.
 
@@ -120,7 +126,7 @@ If two proposals include the same tx hash, vetoing either one blocks both execut
 
 ### Phase E: Council rotation
 
-`council` is immutable. Rotation requires deploying a new guard and replacing guard wiring on Safe.
+Council authority is `owner()` via OpenZeppelin `Ownable`. Rotation is done via `transferOwnership(newCouncil)` — no guard redeployment needed. Existing `vetoedTxHash` state is preserved across ownership transfers.
 
 Operational details: `docs/OPERATIONS.md`
 

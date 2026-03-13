@@ -5,7 +5,7 @@ This document defines the expected behavior of `SecurityCouncilAzorius`.
 ## Core Guarantees
 
 1. Access Control:
-   - Only `council` can call `vetoProposal`, `unvetoProposal`, `vetoTx`, `unvetoTx`, `multicall`.
+   - Only `owner()` (the council, via OpenZeppelin `Ownable`) can call `vetoProposal`, `unvetoProposal`, `vetoTx`, `unvetoTx`, `multicall`, and `transferOwnership`.
 2. Veto Enforcement:
    - If `vetoedTxHash[hash] == true`, `checkTransaction` reverts with `TransactionVetoed(hash)`.
 3. Executability Restoration:
@@ -24,7 +24,7 @@ This document defines the expected behavior of `SecurityCouncilAzorius`.
 ## Non-Goals
 
 1. This contract does not track proposal lifecycle phases (timelock/execution windows).
-2. This contract does not enforce caller restrictions on `checkTransaction`; integration is expected through Safe guard wiring.
+2. This contract does not enforce caller restrictions on `checkTransaction`; integration is expected through Azorius module guard wiring (`Azorius.setGuard`), not Safe guard wiring.
 
 ## Verification Status
 

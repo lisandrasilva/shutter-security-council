@@ -146,6 +146,6 @@ These parameter changes are independent of the guard and can be submitted as a f
 - **timelockPeriod is in blocks**, not seconds. Azorius compares it against `block.number`.
 - **executionPeriod is in blocks**, not seconds. It uses `block.number` comparison.
 - The timelock starts counting after the voting period ends and the proposal is marked as passed.
-- The council address is immutable in `SecurityCouncilAzorius`. If the council needs to rotate, a new guard must be deployed and installed via a new governance proposal.
+- The council authority is `owner()` via OpenZeppelin `Ownable`. Council rotation is done via `transferOwnership(newCouncil)` — no guard redeployment needed. See `docs/OPERATIONS.md` for the rotation procedure.
 - Changing the timelock later requires another governance proposal calling `updateTimelockPeriod`. The council cannot change it unilaterally.
 - The guard and timelock must be installed atomically in the same proposal. If only the guard is installed without a timelock, the council has no reaction window and the guard is ineffective.

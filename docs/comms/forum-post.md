@@ -186,8 +186,11 @@ If not    → EXECUTE normally
 ### What the Guard Can and Cannot Do
 
 **Can do:**
-- `veto(bytes32 txHash)` — Mark a transaction hash as blocked
-- `unveto(bytes32 txHash)` — Remove a veto (if added mistakenly)
+- `vetoTx(bytes32 txHash)` — Mark a single transaction hash as blocked
+- `unvetoTx(bytes32 txHash)` — Remove a veto on a single hash (if added mistakenly)
+- `vetoProposal(uint32 proposalId)` — Veto all transaction hashes in a proposal
+- `unvetoProposal(uint32 proposalId)` — Remove veto from all hashes in a proposal
+- `multicall(bytes[] calls)` — Batch multiple council operations atomically
 - `transferOwnership(address newCouncil)` — Rotate council without redeployment
 
 **Cannot do:**
@@ -261,7 +264,7 @@ Total ~12 days from submission to deadline — comparable to ENS, Arbitrum, and 
 | 4 | `Azorius.enableStrategy(newStrategy)` — enable the new voting strategy |
 | 5 | `LinearERC20Voting.updateRequiredProposerWeight(1_000_000_000e18)` — set old strategy threshold to total supply |
 
-**Important:** Azorius executes transactions sequentially (not atomically). If any transaction fails mid-execution, earlier transactions are already committed. Recovery would require a new proposal to clean up partial state.
+**Important:** When all transactions are passed in a single `executeProposal` call (the standard path), execution is atomic — if any transaction fails, the entire call reverts and no state changes are committed. Partial state is only possible if someone intentionally splits execution across multiple `executeProposal` calls using Azorius's `executionCounter` mechanism. In that unlikely scenario, recovery would require a new proposal to clean up partial state.
 ---
 
 ## Governance Lifecycle Comparison

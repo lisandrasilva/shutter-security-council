@@ -14,8 +14,8 @@ Known integration addresses for the target setup:
 - Safe singleton (resolved on-chain): `0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552`
 - Safe version (resolved on-chain): `1.3.0`
 - Azorius: `0xAA6BfA174d2f803b517026E93DBBEc1eBa26258e`
-- Council: not defined yet
-- SecurityCouncilAzorius: not deployed yet
+- Council: `0x3ea731dAF66D6A7980549f90152CD9A761B9c0C0`
+- SecurityCouncilAzorius: `0xb04f553c482063a99b10c55033b56bd50b6b0334`
 
 Governance stack addresses used in proposal-fork testing:
 
@@ -66,7 +66,7 @@ Do not rely on memory or chat history for addresses. Record every deployment her
 
 | Network | Chain ID | Safe proxy address | Safe singleton address | Safe version | Azorius address | Council address | SecurityCouncilAzorius address | Deployment tx | Deployed at (UTC) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Mainnet | `1` | `0x36bD3044ab68f600f6d3e081056F34f2a58432c4` | `0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552` | `1.3.0` | `0xAA6BfA174d2f803b517026E93DBBEc1eBa26258e` | `TBD (not defined yet)` | `TBD (not deployed yet)` | `TBD` | `TBD` |
+| Mainnet | `1` | `0x36bD3044ab68f600f6d3e081056F34f2a58432c4` | `0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552` | `1.3.0` | `0xAA6BfA174d2f803b517026E93DBBEc1eBa26258e` | `0x3ea731dAF66D6A7980549f90152CD9A761B9c0C0` | `0xb04f553c482063a99b10c55033b56bd50b6b0334` | `TBD` | `TBD` |
 | Sepolia | `11155111` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` | `TBD` |
 
 ## Deployment input vs operational addresses

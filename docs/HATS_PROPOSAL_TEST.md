@@ -40,8 +40,6 @@ The test includes **critical validation** by computing the expected proxy addres
 - **Owner**: `0x36bD3044ab68f600f6d3e081056F34f2a58432c4` (Shutter Safe)
 - **Governance Token**: `0xe485E2f1bab389C08721B291f6b59780feC83Fd7` (Shutter Token)
 - **Voting Period**: 21600 blocks
-- **Quorum**: 30000 basis points (30%)
-- **Threshold**: 500000 basis points (50%)
 
 ## Test Functions
 
