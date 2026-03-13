@@ -10,9 +10,18 @@ import {GovernanceProposal} from "src/proposals/GovernanceProposal.sol";
 abstract contract SubmitProposal is Script {
     function _proposal()
         internal
-        view
         virtual
         returns (address strategy, IAzorius.Transaction[] memory txs, string memory metadata);
+
+    /// @notice Builds a properly JSON-escaped metadata string from title and description.
+    ///         Uses vm.serializeString to escape newlines, quotes, and other special characters.
+    function _buildMetadataJson(string memory title, string memory description)
+        internal
+        returns (string memory)
+    {
+        vm.serializeString("metadata", "title", title);
+        return vm.serializeString("metadata", "description", description);
+    }
 
     function run() external {
         (address strategy, IAzorius.Transaction[] memory txs, string memory metadata) = _proposal();

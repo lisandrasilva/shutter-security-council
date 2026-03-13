@@ -12,7 +12,6 @@ contract SubmitSecurityCouncilProposalScript is SubmitProposal {
 
     function _proposal()
         internal
-        view
         override
         returns (address strategy, IAzorius.Transaction[] memory txs, string memory metadata)
     {
@@ -20,11 +19,7 @@ contract SubmitSecurityCouncilProposalScript is SubmitProposal {
         txs = SecurityCouncilProposal.buildProposalTransactions(guardAddress);
         strategy = GovernanceProposal.LINEAR_ERC20_VOTING();
 
-        string memory description = _loadDescription();
-        metadata = string.concat('{"title":"', TITLE, '","description":"', description, '"}');
-    }
-
-    function _loadDescription() internal view returns (string memory description) {
-        description = vm.readFile(DESCRIPTION_PATH);
+        string memory description = vm.readFile(DESCRIPTION_PATH);
+        metadata = _buildMetadataJson(TITLE, description);
     }
 }

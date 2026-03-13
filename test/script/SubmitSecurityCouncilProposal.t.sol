@@ -10,7 +10,6 @@ import {SubmitSecurityCouncilProposalScript} from "script/SubmitSecurityCouncilP
 contract SubmitSecurityCouncilProposalHarness is SubmitSecurityCouncilProposalScript {
     function exposedProposal()
         external
-        view
         returns (address strategy, IAzorius.Transaction[] memory txs, string memory metadata)
     {
         return _proposal();
