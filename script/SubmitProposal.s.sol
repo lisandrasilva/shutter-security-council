@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {Script} from "forge-std/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 import {IAzorius} from "src/interfaces/IAzorius.sol";
 import {GovernanceProposal} from "src/proposals/GovernanceProposal.sol";
 
@@ -15,11 +15,24 @@ abstract contract SubmitProposal is Script {
         returns (address strategy, IAzorius.Transaction[] memory txs, string memory metadata);
 
     function run() external {
-        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
         (address strategy, IAzorius.Transaction[] memory txs, string memory metadata) = _proposal();
 
-        vm.startBroadcast(pk);
-        IAzorius(GovernanceProposal.AZORIUS()).submitProposal(strategy, hex"", txs, metadata);
+        address to = GovernanceProposal.AZORIUS();
+        bytes memory callData =
+            abi.encodeCall(IAzorius.submitProposal, (strategy, hex"", txs, metadata));
+
+        console.log("to:", to);
+        console.log("calldata:");
+        console.logBytes(callData);
+
+        uint256 pk = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
+        if (pk != 0) {
+            vm.startBroadcast(pk);
+        } else {
+            vm.startBroadcast();
+        }
+
+        IAzorius(to).submitProposal(strategy, hex"", txs, metadata);
         vm.stopBroadcast();
     }
 }

@@ -6,11 +6,16 @@ import {SecurityCouncilAzorius} from "src/SecurityCouncilAzorius.sol";
 
 contract DeploySecurityCouncilAzorius is Script {
     function run() external returns (SecurityCouncilAzorius deployed) {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address councilAddress = vm.envAddress("COUNCIL_ADDRESS");
         address azoriusAddress = vm.envAddress("AZORIUS_ADDRESS");
 
-        vm.startBroadcast(deployerPrivateKey);
+        uint256 deployerPrivateKey = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
+        if (deployerPrivateKey != 0) {
+            vm.startBroadcast(deployerPrivateKey);
+        } else {
+            vm.startBroadcast();
+        }
+
         deployed = new SecurityCouncilAzorius(councilAddress, azoriusAddress);
         vm.stopBroadcast();
     }

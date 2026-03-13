@@ -41,9 +41,8 @@ abstract contract ShutterGovernanceBaseForkTest is Test {
     address internal proposer;
     address[] internal voters;
 
-    function _rpcUrl() internal view returns (string memory rpcUrl) {
-        rpcUrl = vm.envOr("MAINNET_RPC_URL", string(""));
-        if (bytes(rpcUrl).length == 0) rpcUrl = vm.envOr("RPC_URL", string(""));
+    function _rpcUrl() internal view returns (string memory) {
+        return vm.envString("RPC_URL");
     }
 
     function _forkBlockNumber() internal pure virtual returns (uint256) {

@@ -17,7 +17,7 @@ This repository contains the production contract, deployment script, and verific
 
 ## Why this exists
 
-Azorius proposals can execute multiple transactions over time. This guard adds a council-controlled safety layer at execution time:
+Azorius proposals contain one or more transactions. When all transactions are passed in a single `executeProposal` call (the standard path), execution is atomic. Azorius also supports partial execution across multiple calls via `executionCounter`. This guard adds a council-controlled safety layer at execution time:
 
 - Council can veto or unveto at proposal scope (`vetoProposal`, `unvetoProposal`)
 - Council can veto or unveto at transaction-hash scope (`vetoTx`, `unvetoTx`)

@@ -11,6 +11,12 @@ optimizer_runs = 10000
 via_ir = true
 fs_permissions = [{ access = "read", path = "./" }]
 
+[rpc_endpoints]
+mainnet = "${RPC_URL}"
+
+[etherscan]
+mainnet = { key = "${ETHERSCAN_API_KEY}" }
+
 [fuzz]
 runs = 1024
 
