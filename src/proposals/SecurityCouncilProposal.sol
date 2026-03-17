@@ -16,11 +16,7 @@ import {GovernanceProposal} from "src/proposals/GovernanceProposal.sol";
 library SecurityCouncilProposal {
     uint32 internal constant TIMELOCK_PERIOD = 14_400;
 
-    function buildProposalTransactions(address guardAddress)
-        internal
-        pure
-        returns (IAzorius.Transaction[] memory txs)
-    {
+    function buildProposalTransactions(address guardAddress) internal pure returns (IAzorius.Transaction[] memory txs) {
         txs = new IAzorius.Transaction[](2);
 
         txs[0] = IAzorius.Transaction({
@@ -39,8 +35,7 @@ library SecurityCouncilProposal {
     }
 
     function metadata() internal pure returns (string memory) {
-        return
-        '{"title":"Security Council Guard Installation","description":"Install security council veto guard with a 2-day timelock for the council veto window"}';
+        return '{"title":"Security Council Guard Installation","description":"Install security council veto guard with a 2-day timelock for the council veto window"}';
     }
 
     function buildProposal(address guardAddress)

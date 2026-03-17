@@ -133,8 +133,7 @@ library HatsProposalGatingProposal {
     }
 
     function metadata() internal pure returns (string memory) {
-        return
-        '{"title":"Hats Protocol Proposal Gating","description":"Enable hat-gated proposal creation for Shutter DAO governance"}';
+        return '{"title":"Hats Protocol Proposal Gating","description":"Enable hat-gated proposal creation for Shutter DAO governance"}';
     }
 
     function buildProposal(address[] memory wearers)
@@ -167,11 +166,7 @@ library HatsProposalGatingProposal {
         });
     }
 
-    function buildBaseTransactions(address[] memory wearers)
-        internal
-        pure
-        returns (IAzorius.Transaction[] memory txs)
-    {
+    function buildBaseTransactions(address[] memory wearers) internal pure returns (IAzorius.Transaction[] memory txs) {
         txs = new IAzorius.Transaction[](5);
 
         txs[0] = IAzorius.Transaction({
@@ -182,10 +177,7 @@ library HatsProposalGatingProposal {
         });
 
         txs[1] = IAzorius.Transaction({
-            to: DECENT_HATS(),
-            value: 0,
-            data: buildCreateRoleHatCalldata(wearers),
-            operation: IAzorius.Operation.Call
+            to: DECENT_HATS(), value: 0, data: buildCreateRoleHatCalldata(wearers), operation: IAzorius.Operation.Call
         });
 
         txs[2] = IAzorius.Transaction({

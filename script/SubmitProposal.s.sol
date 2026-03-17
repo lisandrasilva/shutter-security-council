@@ -15,10 +15,7 @@ abstract contract SubmitProposal is Script {
 
     /// @notice Builds a properly JSON-escaped metadata string from title and description.
     ///         Uses vm.serializeString to escape newlines, quotes, and other special characters.
-    function _buildMetadataJson(string memory title, string memory description)
-        internal
-        returns (string memory)
-    {
+    function _buildMetadataJson(string memory title, string memory description) internal returns (string memory) {
         vm.serializeString("metadata", "title", title);
         return vm.serializeString("metadata", "description", description);
     }
@@ -27,8 +24,7 @@ abstract contract SubmitProposal is Script {
         (address strategy, IAzorius.Transaction[] memory txs, string memory metadata) = _proposal();
 
         address to = GovernanceProposal.AZORIUS();
-        bytes memory callData =
-            abi.encodeCall(IAzorius.submitProposal, (strategy, hex"", txs, metadata));
+        bytes memory callData = abi.encodeCall(IAzorius.submitProposal, (strategy, hex"", txs, metadata));
 
         console.log("to:", to);
         console.log("calldata:");

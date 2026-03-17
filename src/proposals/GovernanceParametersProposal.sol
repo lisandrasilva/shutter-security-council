@@ -35,8 +35,7 @@ library GovernanceParametersProposal {
     }
 
     function metadata() internal pure returns (string memory) {
-        return
-        '{"title":"Governance Parameters Hardening","description":"Extend execution window to 7 days and raise proposer threshold to 100K SHU"}';
+        return '{"title":"Governance Parameters Hardening","description":"Extend execution window to 7 days and raise proposer threshold to 100K SHU"}';
     }
 
     function buildProposal()

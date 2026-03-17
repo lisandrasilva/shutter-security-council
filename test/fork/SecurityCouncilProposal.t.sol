@@ -65,12 +65,8 @@ contract SecurityCouncilProposalTest is ShutterGovernanceBaseForkTest {
         _executeGovernanceProposal();
 
         IAzoriusFork.Transaction[] memory dummyTxs = new IAzoriusFork.Transaction[](1);
-        dummyTxs[0] = IAzoriusFork.Transaction({
-            to: address(0xdead),
-            value: 0,
-            data: "",
-            operation: IAzoriusFork.Operation.Call
-        });
+        dummyTxs[0] =
+            IAzoriusFork.Transaction({to: address(0xdead), value: 0, data: "", operation: IAzoriusFork.Operation.Call});
 
         _delegateVoters();
         uint32 newProposalId = AZORIUS.totalProposalCount();
