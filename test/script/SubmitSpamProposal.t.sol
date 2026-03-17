@@ -8,13 +8,13 @@ import {GovernanceProposal} from "src/proposals/GovernanceProposal.sol";
 
 contract SubmitSpamProposalTest is Test {
     function test_buildProposalReturnsCorrectStrategy() public pure {
-        (address strategy,,) = SpamProposal.buildProposal(address(0xdead), hex"");
+        (address strategy,,) = SpamProposal.buildProposal(0, address(0xdead), hex"");
         assertEq(strategy, GovernanceProposal.LINEAR_ERC20_VOTING());
     }
 
     function test_buildProposalReturnsSingleTransaction() public pure {
         (, IAzorius.Transaction[] memory txs,) =
-            SpamProposal.buildProposal(address(0xdead), abi.encodeWithSignature("setNumber(uint256)", 42));
+            SpamProposal.buildProposal(0, address(0xdead), abi.encodeWithSignature("setNumber(uint256)", 42));
 
         assertEq(txs.length, 1);
         assertEq(txs[0].to, address(0xdead));
@@ -23,7 +23,9 @@ contract SubmitSpamProposalTest is Test {
     }
 
     function test_metadataIsWellFormed() public pure {
-        string memory metadata = SpamProposal.metadata();
-        assertGt(bytes(metadata).length, 0);
+        for (uint256 i = 0; i < 8; i++) {
+            string memory meta = SpamProposal.metadata(i);
+            assertGt(bytes(meta).length, 0);
+        }
     }
 }

@@ -32,7 +32,7 @@ contract SpamProposalTest is ShutterGovernanceBaseForkTest {
     }
 
     function _metadata() internal pure override returns (string memory) {
-        return SpamProposal.metadata();
+        return SpamProposal.metadata(0);
     }
 
     function test_thousandProposalsBatchedViaMulticall3() public {

@@ -82,13 +82,12 @@ contract FullLifecycleTest is ShutterGovernanceBaseForkTest {
         // ── Step 4: Spam attack (should be blocked) ─────────────────────
 
         address spammer = address(0xBAD);
-        IAzoriusFork.Transaction[] memory spamTxs = SpamProposal.buildProposalTransactions(
-            address(spamTarget), abi.encodeCall(MockTarget.setNumber, (999))
-        );
+        IAzoriusFork.Transaction[] memory spamTxs =
+            SpamProposal.buildProposalTransactions(address(spamTarget), abi.encodeCall(MockTarget.setNumber, (999)));
 
         vm.prank(spammer);
         vm.expectRevert();
-        AZORIUS.submitProposal(address(LINEAR_ERC20_VOTING), hex"", spamTxs, SpamProposal.metadata());
+        AZORIUS.submitProposal(address(LINEAR_ERC20_VOTING), hex"", spamTxs, SpamProposal.metadata(0));
 
         // ── Step 5: Hats proposal gating ─────────────────────────────────
         // After step 3, proposer threshold is 100K SHU. The Safe has enough weight.
