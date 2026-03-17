@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IAzorius} from "src/interfaces/IAzorius.sol";
-
 /// @title GovernanceProposal
-/// @notice Shared Shutter DAO governance constants and generic proposal builder.
+/// @notice Shared Shutter DAO governance constants.
 library GovernanceProposal {
     function AZORIUS() internal pure returns (address) {
         return 0xAA6BfA174d2f803b517026E93DBBEc1eBa26258e;
@@ -20,15 +18,5 @@ library GovernanceProposal {
 
     function LINEAR_ERC20_VOTING() internal pure returns (address) {
         return 0x4b29d8B250B8b442ECfCd3a4e3D91933d2db720F;
-    }
-
-    function buildProposal(IAzorius.Transaction[] memory txs, string memory title, string memory description)
-        internal
-        pure
-        returns (address strategy, IAzorius.Transaction[] memory, string memory metadata)
-    {
-        strategy = LINEAR_ERC20_VOTING();
-        metadata = string.concat('{"title":"', title, '","description":"', description, '"}');
-        return (strategy, txs, metadata);
     }
 }
