@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {Enum, SecurityCouncilAzorius} from "src/SecurityCouncilAzorius.sol";
+import {Enum, SecurityCouncilAzorius, IGuard, IERC165} from "src/SecurityCouncilAzorius.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {MockAzorius} from "./MockAzorius.k.sol";
 import {KontrolTest} from "test/kontrol/KontrolTest.sol";
@@ -28,12 +28,11 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
     
         guard = new SecurityCouncilAzorius(council, address(mockAzorius));
         kevm.symbolicStorage(address(guard));
+        // Restore _owner (slot 0) to council after making storage symbolic.
+        _storeAddress(address(guard), 0, council);
 
         // We assert that the invariants hold at the end of `setUp` - the initial state of the contract is valid.
-        ownerIsNotZero();
-        azoriusIsNotZero();
-        ownerIsImmutable();
-        azoriusIsImmutable();
+        checkInvariants();
     }
 
     // =============================================================================
@@ -55,12 +54,16 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
         vm.assertEq(guard.azorius(), address(mockAzorius));
     }
 
-    modifier preserveInvariants() {
-        _;
+    function checkInvariants() internal view {
         ownerIsNotZero();
         azoriusIsNotZero();
         ownerIsImmutable();
         azoriusIsImmutable();
+    }
+
+    modifier preserveInvariants() {
+        _;
+        checkInvariants();
     }
 
     modifier preserveStorage(uint256 slot) {
@@ -98,99 +101,97 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
     }
 
     // =============================================================================
-    // Invariant Preserving Actions
+    // vetoProposal
     // =============================================================================
-    
-    // TODO:
-    // - We should also check that for each function that the state changes as expected - 
-    //    e.g. that vetoing a proposal sets the vetoed state for the txHashes returned by `getProposal`, 
-    //         but this is non-trivial since the txHashes are symbolic and we don't know which ones they are. 
-    //         For now we just check the invariants.
-    // - Ensure that for each function only the expected storage variables are modified
-    //    - e.g. that vetoing a proposal only modifies the vetoed state of the relevant txHashes.
 
-    // We want to test that vetoing a proposal preserves the invariants and that the expected state changes occur. 
     function test_VetoProposal(uint32 proposalId, uint256 slot) external preserveInvariants preserveStorage(slot) {
-        // Only the council can veto, so we impersonate it to call the function.
-        // We check that the invariants hold after the call to vetoProposal
-
-        // Before the call:
-        // 1. We make the proposal symbolic to allow for symbolic txHashes
         mockAzorius.setSymbolicProposal(proposalId);
-        // 2. We get the txHashes for the proposal so that we can check later that they are vetoed and that only
-        // their vetoed state is modified.
         ( , bytes32[] memory txHashes, , , ) = mockAzorius.getProposal(proposalId);
-        
-        
+
         vm.prank(council);
         guard.vetoProposal(proposalId);
-        
-        // After the call:
-        // 1. Check that the state changes as expected
-        // 2. Populate the changedSlots array with the storage slots that we expect to be modified by vetoing the 
-        // proposal. This allows us to check in the preserveStorage modifier that only the expected storage 
-        // variables are modified.
+
         uint256 txsLen = txHashes.length;
         changedSlots = new uint256[](txsLen);
         for (uint256 i = 0; i < txsLen;) {
             vm.assertEq(guard.vetoedTxHash(txHashes[i]), true, "Unexpected vetoed state for txHash");
-            changedSlots[i] = uint256(keccak256(abi.encode(txHashes[i], uint256(0)))); // vetoedTxHash mapping is at slot 0
+            changedSlots[i] = uint256(keccak256(abi.encode(txHashes[i], uint256(1)))); // vetoedTxHash mapping is at slot 1
             unchecked {
                 ++i;
             }
         }
     }
 
+    function test_isProposalVetoed_trueAfterVetoProposal(uint32 proposalId, uint256 slot) external preserveInvariants preserveStorage(slot) {
+        mockAzorius.setSymbolicProposal(proposalId);
+        bytes32[] memory txHashes = mockAzorius.getProposalTxHashes(proposalId);
+
+        vm.prank(council);
+        guard.vetoProposal(proposalId);
+
+        if (txHashes.length > 0) {
+            vm.assertTrue(guard.isProposalVetoed(proposalId));
+        } else {
+            vm.assertFalse(guard.isProposalVetoed(proposalId));
+        }
+    }
+
     function test_onlyCouncilCanVeto(uint32 proposalId) external {
-        // We impersonate a random address that is not the council and attempt to veto.
-        // We expect this to revert with the NotCouncil error.
         address randomUser = kevm.freshAddress();
         vm.assume(randomUser != council);
-        
+
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector));
 
         vm.prank(randomUser);
         guard.vetoProposal(proposalId);
     }
 
+    // =============================================================================
+    // unvetoProposal
+    // =============================================================================
+
     function test_unvetoProposal(uint32 proposalId, uint256 slot) external preserveInvariants preserveStorage(slot) {
-        // Only the council can unveto, so we impersonate it to call the function.
-        // We check that the invariants hold after the call to unvetoProposal
         mockAzorius.setSymbolicProposal(proposalId);
         ( , bytes32[] memory txHashes, , , ) = mockAzorius.getProposal(proposalId);
 
-        //vm.expectEmit(true, false, false, false, address(guard));
-        //emit ProposalUnvetoed(proposalId, txsLen);
-        
         vm.prank(council);
         guard.unvetoProposal(proposalId);
-        
+
         uint256 txsLen = txHashes.length;
         changedSlots = new uint256[](txsLen);
         for (uint256 i = 0; i < txsLen;) {
             vm.assertFalse(guard.vetoedTxHash(txHashes[i]));
-            changedSlots[i] = uint256(keccak256(abi.encode(txHashes[i], uint256(0)))); // vetoedTxHash mapping is at slot 0
+            changedSlots[i] = uint256(keccak256(abi.encode(txHashes[i], uint256(1)))); // vetoedTxHash mapping is at slot 1
             unchecked {
                 ++i;
             }
         }
     }
 
+    function test_isProposalVetoed_falseAfterUnvetoProposal(uint32 proposalId, uint256 slot) external preserveInvariants preserveStorage(slot) {
+        mockAzorius.setSymbolicProposal(proposalId);
+
+        vm.prank(council);
+        guard.unvetoProposal(proposalId);
+
+        vm.assertFalse(guard.isProposalVetoed(proposalId));
+    }
+
     function test_onlyCouncilCanUnveto(uint32 proposalId) external {
-        // We impersonate a random address that is not the council and attempt to unveto. 
-        // We expect this to revert with the NotCouncil error.
         address randomUser = kevm.freshAddress();
         vm.assume(randomUser != council);
-        
+
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector));
 
         vm.prank(randomUser);
         guard.unvetoProposal(proposalId);
     }
 
+    // =============================================================================
+    // vetoTx
+    // =============================================================================
+
     function test_vetoTx(bytes32 txHash, uint256 slot) external preserveInvariants preserveStorage(slot) {
-        // Only the council can veto a tx, so we impersonate it to call the function.
-        // We check that the invariants hold after the call to vetoTx
         vm.assume(!guard.vetoedTxHash(txHash));
 
         vm.expectEmit(true, false, false, false, address(guard));
@@ -198,39 +199,46 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
 
         vm.prank(council);
         guard.vetoTx(txHash);
-        
+
         vm.assertTrue(guard.vetoedTxHash(txHash));
-        changedSlots.push(uint256(keccak256(abi.encode(txHash, uint256(0))))); // vetoedTxHash mapping is at slot 0
+        changedSlots.push(uint256(keccak256(abi.encode(txHash, uint256(1))))); // vetoedTxHash mapping is at slot 1
+    }
+
+    function test_vetoTxRevertsIfAlreadyVetoed(bytes32 txHash) external {
+        vm.assume(guard.vetoedTxHash(txHash));
+        vm.expectRevert(abi.encodeWithSelector(SecurityCouncilAzorius.AlreadyVetoed.selector, txHash));
+        vm.prank(council);
+        guard.vetoTx(txHash);
     }
 
     function test_onlyCouncilCanVetoTx(bytes32 txHash) external {
-        // We impersonate a random address that is not the council and attempt to veto a tx directly. 
-        // We expect this to revert with the NotCouncil error.
         address randomUser = kevm.freshAddress();
         vm.assume(randomUser != council);
-        
+
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector));
 
         vm.prank(randomUser);
         guard.vetoTx(txHash);
     }
 
+    // =============================================================================
+    // unvetoTx
+    // =============================================================================
+
     function test_unvetoTx(bytes32 txHash, uint256 slot) external preserveInvariants preserveStorage(slot) {
-        // Only the council can unveto a tx, so we impersonate it to call the function.
-        // We check that the invariants hold after the call to unvetoTx
         vm.assume(guard.vetoedTxHash(txHash));
+
         vm.expectEmit(true, false, false, false, address(guard));
         emit TxHashUnvetoed(txHash);
 
         vm.prank(council);
         guard.unvetoTx(txHash);
-        
+
         vm.assertFalse(guard.vetoedTxHash(txHash));
-        changedSlots.push(uint256(keccak256(abi.encode(txHash, uint256(0))))); // vetoedTxHash mapping is at slot 0
+        changedSlots.push(uint256(keccak256(abi.encode(txHash, uint256(1))))); // vetoedTxHash mapping is at slot 1
     }
 
-    function test_unvetoTxThatIsNotVetoed(bytes32 txHash) external {
-        // Unvetoing a tx that is not vetoed should be a no-op and should not revert. We impersonate the council to call the function and check that the invariants hold.
+    function test_unvetoTxRevertsIfNotVetoed(bytes32 txHash) external {
         vm.assume(!guard.vetoedTxHash(txHash));
         vm.expectRevert(abi.encodeWithSelector(SecurityCouncilAzorius.NotVetoed.selector, txHash));
         vm.prank(council);
@@ -238,35 +246,117 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
     }
 
     function test_onlyCouncilCanUnvetoTx(bytes32 txHash) external {
-        // We impersonate a random address that is not the council and attempt to unveto a tx directly. 
-        // We expect this to revert with the NotCouncil error.
         address randomUser = kevm.freshAddress();
         vm.assume(randomUser != council);
-        
+
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector));
 
         vm.prank(randomUser);
         guard.unvetoTx(txHash);
     }
 
-    function test_multiCall(bytes[] calldata calls) external preserveInvariants {
-        // Only the council can call multicall, so we impersonate it to call the function.
-        // We check that the invariants hold after the call to multicall
-        // TODO: We should also check that the effects of the calls are as expected, but this is non-trivial since the calls can be arbitrary. For now we just check the invariants.
+    // =============================================================================
+    // multicall
+    // =============================================================================
+
+    function test_multiCall(bytes[] calldata calls, uint256 slot) external preserveInvariants preserveStorage(slot) {
+        // TODO: check that the effects of the calls are as expected; non-trivial since the calls can be arbitrary.
         vm.prank(council);
         guard.multicall(calls);
     }
 
     function test_onlyCouncilCanMultiCall(bytes[] calldata calls) external {
-        // We impersonate a random address that is not the council and attempt to call multicall. 
-        // We expect this to revert with the NotCouncil error.
         address randomUser = kevm.freshAddress();
         vm.assume(randomUser != council);
-        
+
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector));
 
         vm.prank(randomUser);
         guard.multicall(calls);
+    }
+
+    // =============================================================================
+    // checkTransaction
+    // =============================================================================
+
+    // Uses empty calldata; the veto check depends only on the computed txHash.
+    function test_checkTransactionRevertsIfVetoed(address to, uint256 value, Enum.Operation operation) external {
+        bytes memory data = new bytes(0);
+        bytes32 txHash = mockAzorius.getTxHash(to, value, data, operation);
+        vm.assume(guard.vetoedTxHash(txHash));
+        vm.expectRevert(abi.encodeWithSelector(SecurityCouncilAzorius.TransactionVetoed.selector, txHash));
+        guard.checkTransaction(
+            to, value, data, operation,
+            0, 0, 0, address(0), payable(address(0)), new bytes(0), address(0)
+        );
+    }
+
+    function test_checkTransactionSucceedsIfNotVetoed(address to, uint256 value, Enum.Operation operation) external view {
+        bytes memory data = new bytes(0);
+        bytes32 txHash = mockAzorius.getTxHash(to, value, data, operation);
+        vm.assume(!guard.vetoedTxHash(txHash));
+        guard.checkTransaction(
+            to, value, data, operation,
+            0, 0, 0, address(0), payable(address(0)), new bytes(0), address(0)
+        );
+    }
+
+    // =============================================================================
+    // checkAfterExecution
+    // =============================================================================
+
+    function test_checkAfterExecutionNeverReverts(bytes32 txHash, bool success) external {
+        guard.checkAfterExecution(txHash, success);
+    }
+
+    // =============================================================================
+    // renounceOwnership
+    // =============================================================================
+
+    function test_renounceOwnershipAlwaysReverts() external {
+        vm.prank(council);
+        vm.expectRevert(abi.encodeWithSelector(SecurityCouncilAzorius.RenounceOwnershipDisabled.selector));
+        guard.renounceOwnership();
+    }
+
+    // =============================================================================
+    // transferOwnership
+    // =============================================================================
+
+    function test_transferOwnershipRevertsForZeroAddress() external {
+        vm.prank(council);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableInvalidOwner.selector, address(0)));
+        guard.transferOwnership(address(0));
+    }
+
+    function test_transferOwnershipIntegrity(address newOwner, uint256 slot) external preserveInvariants preserveStorage(slot) {
+        vm.assume(newOwner != address(0));
+        vm.prank(council);
+        guard.transferOwnership(newOwner);
+        vm.assertEq(guard.owner(), newOwner);
+    }
+
+    function test_nonOwnerCannotTransferOwnership(address randomUser, address newOwner) external {
+        vm.assume(randomUser != council);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector));
+        vm.prank(randomUser);
+        guard.transferOwnership(newOwner);
+    }
+
+    // =============================================================================
+    // supportsInterface
+    // =============================================================================
+
+    function test_supportsInterfaceIGuard() external view {
+        vm.assertTrue(guard.supportsInterface(type(IGuard).interfaceId));
+    }
+
+    function test_supportsInterfaceIERC165() external view {
+        vm.assertTrue(guard.supportsInterface(type(IERC165).interfaceId));
+    }
+
+    function test_supportsInterfaceRejectsFFFFFFFF() external view {
+        vm.assertFalse(guard.supportsInterface(0xffffffff));
     }
 
 }
