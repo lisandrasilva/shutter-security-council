@@ -39,9 +39,23 @@ contract MockAzorius is IAzorius, KontrolTest {
         }
     }
 
+    /// @dev Populates the txHashes array of a proposal with symbolic values for use
+    ///      in Kontrol symbolic execution proofs.
+    ///
+    ///      The Solidity storage layout for `proposals[proposalId]` is:
+    ///        proposalIdSlot + 0 : packed (strategy, timelockPeriod, executionPeriod, executionCounter)
+    ///        proposalIdSlot + 1 : txHashes.length  (dynamic array length)
+    ///        keccak256(proposalIdSlot + 1) + i : txHashes[i]  (array element slots)
+    ///
+    ///      The function builds the array by writing one fresh symbolic bytes32 per
+    ///      iteration directly into the element slots. Each iteration continues only
+    ///      if kevm.freshBool() returns true, so the symbolic length is unbounded but
+    ///      finite on every concrete execution path explored by KEVM. After the loop,
+    ///      the accumulated length is written to the length slot so that Solidity array
+    ///      reads return a consistent view of the symbolic data.
     function setSymbolicProposal(uint32 proposalId) external {
         Proposal storage proposal = proposals[proposalId];
-        
+
         uint256 proposalIdSlot;
         assembly {
             proposalIdSlot := proposal.slot
@@ -57,7 +71,7 @@ contract MockAzorius is IAzorius, KontrolTest {
             }
         }
         // Store the length of the txHashes array
-        _storeUInt256(address(this), proposalIdSlot + 1, txsLen); 
+        _storeUInt256(address(this), proposalIdSlot + 1, txsLen);
     }
 
 

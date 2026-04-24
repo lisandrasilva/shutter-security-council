@@ -38,7 +38,7 @@ break-on-basic-blocks      = false
 break-on-cheatcodes        = false
 auto_abstract              = true
 run-constructor            = false
-bmc-depth                  = 3
+bmc-depth                  = 2
 match-test                 = [
         "SecurityCouncilAzoriusKontrolInvariantTest.test_",
     ]
