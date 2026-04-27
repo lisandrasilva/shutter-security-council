@@ -99,8 +99,6 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
 
     address internal council;
 
-    uint256[] changedSlots;
-
     // Unlike Foundry fuzz tests, which sample a finite number of random inputs,
     // Kontrol proves properties hold for ALL possible initial states and ALL possible
     // inputs simultaneously. kevm.symbolicStorage makes the storage of a given contract
@@ -169,28 +167,12 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
         _;
 
         // After the call:
-        // If the slot is not in the list of expected changed slots, check that its value has not changed to ensure 
-        // that only the expected storage variables were modified.
-        if (!slotInSlots(slot, changedSlots)) {
-            // If the slot is not in the list of expected changed slots, check that its value has not changed to ensure 
-            // that only the expected storage variables were modified.
-            uint256 finalValue = _loadUInt256(address(guard), slot);
-            vm.assertEq(initialValue, finalValue, "Unexpected storage modification");
-        }
+        // Assert the slot is unchanged. Each test using this modifier must add
+        // vm.assume(slot != <changed-slot>) before the state-changing call so
+        // KEVM never creates a branch where slot equals a written slot.
+        uint256 finalValue = _loadUInt256(address(guard), slot);
+        vm.assertEq(initialValue, finalValue, "Unexpected storage modification");
 
-    }
-
-    function slotInSlots(uint256 slot, uint256[] memory mslots) internal pure returns (bool) {
-
-        for (uint256 i = 0; i < mslots.length;) {
-            if (mslots[i] == slot) {
-                return true;
-            }
-            unchecked {
-                ++i;
-            }
-        }
-        return false;
     }
 
     // =============================================================================
@@ -209,14 +191,16 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
         guard.vetoProposal(proposalId);
 
         uint256 txsLen = txHashes.length;
-        changedSlots = new uint256[](txsLen);
         for (uint256 i = 0; i < txsLen;) {
             vm.assertEq(guard.vetoedTxHash(txHashes[i]), true, "Unexpected vetoed state for txHash");
-            changedSlots[i] = uint256(keccak256(abi.encode(txHashes[i], uint256(1)))); // vetoedTxHash mapping is at slot 1
+            // Assume that the symbolic slot is different from all storare slots that were expected to change
+            // The preserveStorage modifier will ensure that the `slot` value was no changed
+            vm.assume(slot != uint256(keccak256(abi.encode(txHashes[i], uint256(1))))); // vetoedTxHash mapping is at slot 1
             unchecked {
                 ++i;
             }
         }
+
     }
 
     // T-2
@@ -268,10 +252,9 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
         guard.unvetoProposal(proposalId);
 
         uint256 txsLen = txHashes.length;
-        changedSlots = new uint256[](txsLen);
         for (uint256 i = 0; i < txsLen;) {
             vm.assertFalse(guard.vetoedTxHash(txHashes[i]));
-            changedSlots[i] = uint256(keccak256(abi.encode(txHashes[i], uint256(1)))); // vetoedTxHash mapping is at slot 1
+            vm.assume(slot != uint256(keccak256(abi.encode(txHashes[i], uint256(1))))); // vetoedTxHash mapping is at slot 1
             unchecked {
                 ++i;
             }
@@ -323,7 +306,7 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
         guard.vetoTx(txHash);
 
         vm.assertTrue(guard.vetoedTxHash(txHash));
-        changedSlots.push(uint256(keccak256(abi.encode(txHash, uint256(1))))); // vetoedTxHash mapping is at slot 1
+        vm.assume(slot != uint256(keccak256(abi.encode(txHash, uint256(1))))); // vetoedTxHash mapping is at slot 1
     }
 
     // T-8
@@ -367,7 +350,7 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
         guard.unvetoTx(txHash);
 
         vm.assertFalse(guard.vetoedTxHash(txHash));
-        changedSlots.push(uint256(keccak256(abi.encode(txHash, uint256(1))))); // vetoedTxHash mapping is at slot 1
+        vm.assume(slot != uint256(keccak256(abi.encode(txHash, uint256(1))))); // vetoedTxHash mapping is at slot 1
     }
 
     // T-11
@@ -511,7 +494,8 @@ contract SecurityCouncilAzoriusKontrolInvariantTest is KontrolTest {
         guard.transferOwnership(newOwner);
 
         // Slot owner is expected to change - preparation for preserveStorage modifier
-        changedSlots.push(0);
+        // Slot owner is 0
+        vm.assume(slot != 0);
         
         // Assert expected state change
         vm.assertEq(guard.owner(), newOwner);
